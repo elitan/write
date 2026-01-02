@@ -12,6 +12,11 @@ Minimal markdown notes app for macOS. Tauri 2 (Rust backend) + React 19 + TypeSc
 npm run tauri dev     # dev mode with hot reload
 npm run tauri build   # production build
 npm run typecheck     # type checking only
+
+# Release (triggers GitHub Action to build & publish)
+# 1. Bump version in src-tauri/tauri.conf.json
+# 2. Commit: git commit -am "Bump version to X.Y.Z"
+# 3. Tag and push: git tag vX.Y.Z && git push && git push --tags
 ```
 
 ## Architecture
