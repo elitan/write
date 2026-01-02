@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FileText, RefreshCw, Settings, Trash2 } from "lucide-react";
+import { Search, FileText, RefreshCw, Settings, Trash2, FolderOpen } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import Fuse from "fuse.js";
 import type { NoteEntry } from "../hooks/use-files";
 
@@ -7,7 +8,7 @@ type CommandItem = {
   type: "command";
   id: string;
   title: string;
-  icon: "settings" | "update" | "delete";
+  icon: "settings" | "update" | "delete" | "finder";
   action: () => void;
 };
 
@@ -48,7 +49,10 @@ export function CommandPalette({
     { type: "command", id: "settings", title: "Settings", icon: "settings", action: onOpenSettings },
     { type: "command", id: "update", title: "Check for updates", icon: "update", action: onCheckForUpdates },
     ...(selectedPath
-      ? [{ type: "command" as const, id: "delete", title: "Delete current page", icon: "delete" as const, action: onDeleteCurrent }]
+      ? [
+          { type: "command" as const, id: "finder", title: "Reveal in Finder", icon: "finder" as const, action: () => invoke("reveal_in_finder", { path: selectedPath }) },
+          { type: "command" as const, id: "delete", title: "Delete current page", icon: "delete" as const, action: onDeleteCurrent },
+        ]
       : []),
   ];
 
@@ -132,6 +136,9 @@ export function CommandPalette({
     }
     if (item.icon === "delete") {
       return <Trash2 size={16} className="shrink-0 text-[var(--color-muted)]" />;
+    }
+    if (item.icon === "finder") {
+      return <FolderOpen size={16} className="shrink-0 text-[var(--color-muted)]" />;
     }
     return <RefreshCw size={16} className="shrink-0 text-[var(--color-muted)]" />;
   }
