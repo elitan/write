@@ -18,6 +18,8 @@
     {
       "identifier": "fs:scope",
       "allow": ["$DOCUMENT/Notes/**"]
-    }
+    },
+    "updater:default",
+    "process:allow-restart"
   ]
 }

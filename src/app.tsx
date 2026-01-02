@@ -4,7 +4,9 @@ import { Sidebar } from "./components/sidebar";
 import { Editor } from "./components/editor";
 import { EmptyState } from "./components/empty-state";
 import { CommandPalette } from "./components/command-palette";
+import { UpdatePrompt } from "./components/update-prompt";
 import { useFiles } from "./hooks/use-files";
+import { useUpdater } from "./hooks/use-updater";
 
 function App() {
   const {
@@ -18,6 +20,8 @@ function App() {
     createNote,
     deleteNote,
   } = useFiles();
+
+  const { updateAvailable, readyToInstall, restartAndInstall } = useUpdater();
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
 
@@ -87,6 +91,13 @@ function App() {
         onClose={() => setIsCommandPaletteOpen(false)}
         onSelect={selectNote}
       />
+
+      {readyToInstall && updateAvailable && (
+        <UpdatePrompt
+          version={updateAvailable.version}
+          onRestart={restartAndInstall}
+        />
+      )}
     </div>
   );
 }

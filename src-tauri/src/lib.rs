@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use tauri::menu::{AboutMetadata, MenuBuilder, SubmenuBuilder};
 
 fn get_notes_dir() -> PathBuf {
     let home = dirs::document_dir().unwrap_or_else(|| PathBuf::from("."));
@@ -123,6 +124,55 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
+        .setup(|app| {
+            #[cfg(desktop)]
+            {
+                let handle = app.handle();
+                handle.plugin(tauri_plugin_updater::Builder::new().build())?;
+
+                let version = app.package_info().version.to_string();
+
+                let app_submenu = SubmenuBuilder::new(app, "Write")
+                    .about(Some(AboutMetadata {
+                        name: Some("Write".to_string()),
+                        version: Some(version),
+                        ..Default::default()
+                    }))
+                    .separator()
+                    .services()
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .quit()
+                    .build()?;
+
+                let edit_submenu = SubmenuBuilder::new(app, "Edit")
+                    .undo()
+                    .redo()
+                    .separator()
+                    .cut()
+                    .copy()
+                    .paste()
+                    .select_all()
+                    .build()?;
+
+                let window_submenu = SubmenuBuilder::new(app, "Window")
+                    .minimize()
+                    .separator()
+                    .close_window()
+                    .build()?;
+
+                let menu = MenuBuilder::new(app)
+                    .items(&[&app_submenu, &edit_submenu, &window_submenu])
+                    .build()?;
+
+                app.set_menu(menu)?;
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             ensure_notes_dir,
             list_notes,
