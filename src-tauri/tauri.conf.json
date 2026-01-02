@@ -40,7 +40,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI5MUMyRkEzNzBENzI2RDkKUldUWkp0ZHdveThjdVY4ZmdvQ1pHZWpGc1pEU2VyQ0hHUDNKcjBJL2RSeGNkNDJpQlRQU0VZbGwK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQyRUIwMjJEQkQxQTYxRkUKUldUK1lScTlMUUxyMHNodUhmbkFwRDNTbmNDMXVKeEx1MHYxYzh0c0UveXJSMEFxdEltK2R4ekcK",
       "endpoints": [
         "https://github.com/elitan/write/releases/latest/download/latest.json"
       ]
