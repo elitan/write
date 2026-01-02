@@ -23,7 +23,7 @@ export function CommandPalette({
   const fuse = useMemo(
     () =>
       new Fuse(notes, {
-        keys: ["name"],
+        keys: ["title"],
         threshold: 0.4,
         includeScore: true,
       }),
@@ -133,7 +133,7 @@ export function CommandPalette({
                       size={16}
                       className="shrink-0 text-[var(--color-muted)]"
                     />
-                    <span className="truncate text-[14px]">{note.name}</span>
+                    <span className="truncate text-[14px]">{note.title}</span>
                     {index === selectedIndex && (
                       <kbd className="ml-auto px-1.5 py-0.5 text-[11px] text-[var(--color-muted)] bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded">
                         ↵

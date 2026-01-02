@@ -12,6 +12,15 @@ pub struct NoteEntry {
     pub name: String,
     pub path: String,
     pub modified: u64,
+    pub title: String,
+}
+
+fn parse_title(content: &str) -> String {
+    content
+        .lines()
+        .find(|line| line.starts_with("# "))
+        .map(|line| line.trim_start_matches("# ").to_string())
+        .unwrap_or_else(|| "Untitled".to_string())
 }
 
 #[tauri::command]
@@ -44,10 +53,13 @@ fn list_notes() -> Result<Vec<NoteEntry>, String> {
                     .ok()?
                     .as_secs();
                 let name = path.file_stem()?.to_string_lossy().to_string();
+                let content = fs::read_to_string(&path).unwrap_or_default();
+                let title = parse_title(&content);
                 Some(NoteEntry {
                     name,
                     path: path.to_string_lossy().to_string(),
                     modified,
+                    title,
                 })
             } else {
                 None
@@ -70,21 +82,20 @@ fn write_note(path: String, content: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn create_note(name: String) -> Result<String, String> {
+fn create_note() -> Result<String, String> {
     let notes_dir = get_notes_dir();
     if !notes_dir.exists() {
         fs::create_dir_all(&notes_dir).map_err(|e| e.to_string())?;
     }
 
-    let mut path = notes_dir.join(format!("{}.md", name));
-    let mut counter = 1;
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_millis();
 
-    while path.exists() {
-        path = notes_dir.join(format!("{} {}.md", name, counter));
-        counter += 1;
-    }
+    let path = notes_dir.join(format!("{}.md", timestamp));
 
-    fs::write(&path, format!("# {}\n\n", name)).map_err(|e| e.to_string())?;
+    fs::write(&path, "# Untitled\n\n").map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
 }
 

@@ -5,6 +5,7 @@ export interface NoteEntry {
   name: string;
   path: string;
   modified: number;
+  title: string;
 }
 
 export function useFiles() {
@@ -46,7 +47,7 @@ export function useFiles() {
 
   const createNote = useCallback(async () => {
     try {
-      const path = await invoke<string>("create_note", { name: "Untitled" });
+      const path = await invoke<string>("create_note");
       await loadNotes();
       await selectNote(path);
     } catch (err) {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
@@ -12,12 +12,48 @@ interface EditorProps {
   onSaved: () => void;
 }
 
+function parseContent(content: string): { title: string; body: string } {
+  const lines = content.split("\n");
+  const titleLineIndex = lines.findIndex((line) => line.startsWith("# "));
+
+  if (titleLineIndex === -1) {
+    return { title: "", body: content };
+  }
+
+  const title = lines[titleLineIndex].slice(2);
+  const body = [
+    ...lines.slice(0, titleLineIndex),
+    ...lines.slice(titleLineIndex + 1),
+  ].join("\n");
+
+  return { title, body };
+}
+
+function buildContent(title: string, body: string): string {
+  return `# ${title}\n${body}`;
+}
+
 export function Editor({ content, filePath, isSaving, onSaved }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const lastSavedRef = useRef(content);
   const isSavingRef = useRef(false);
+
+  const parsed = useMemo(() => parseContent(content), [content]);
+  const [title, setTitle] = useState(parsed.title);
+  const titleRef = useRef(title);
+
+  useEffect(() => {
+    const newParsed = parseContent(content);
+    setTitle(newParsed.title);
+    titleRef.current = newParsed.title;
+    setTimeout(() => {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }, 0);
+  }, [filePath]);
 
   const saveNow = useCallback(
     async (text: string, path: string) => {
@@ -48,6 +84,21 @@ export function Editor({ content, filePath, isSaving, onSaved }: EditorProps) {
     [saveNow]
   );
 
+  function handleTitleChange(newTitle: string) {
+    setTitle(newTitle);
+    titleRef.current = newTitle;
+    const body = viewRef.current?.state.doc.toString() ?? parsed.body;
+    const fullContent = buildContent(newTitle, body);
+    debouncedSave(fullContent, filePath);
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      viewRef.current?.focus();
+    }
+  }
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -68,13 +119,14 @@ export function Editor({ content, filePath, isSaving, onSaved }: EditorProps) {
 
     const updateListener = EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        const text = update.state.doc.toString();
-        debouncedSave(text, currentPath);
+        const body = update.state.doc.toString();
+        const fullContent = buildContent(titleRef.current, body);
+        debouncedSave(fullContent, currentPath);
       }
     });
 
     const state = EditorState.create({
-      doc: content,
+      doc: parsed.body,
       extensions: [
         theme,
         markdown(),
@@ -94,15 +146,14 @@ export function Editor({ content, filePath, isSaving, onSaved }: EditorProps) {
     viewRef.current = view;
     lastSavedRef.current = content;
 
-    setTimeout(() => view.focus(), 0);
-
     return () => {
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      const currentContent = view.state.doc.toString();
-      if (currentContent !== lastSavedRef.current) {
-        invoke("write_note", { path: currentPath, content: currentContent });
+      const body = view.state.doc.toString();
+      const fullContent = buildContent(titleRef.current, body);
+      if (fullContent !== lastSavedRef.current) {
+        invoke("write_note", { path: currentPath, content: fullContent });
       }
       view.destroy();
     };
@@ -111,7 +162,20 @@ export function Editor({ content, filePath, isSaving, onSaved }: EditorProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden" style={{ paddingTop: 52 }}>
-        <div ref={containerRef} className="h-full p-6" />
+        <div className="h-full overflow-y-auto">
+          <div className="px-6 pt-6">
+            <input
+              ref={titleInputRef}
+              type="text"
+              value={title}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              onKeyDown={handleTitleKeyDown}
+              placeholder="Untitled"
+              className="editor-title"
+            />
+          </div>
+          <div ref={containerRef} className="px-6 pb-6" />
+        </div>
       </div>
       {isSaving && (
         <div className="absolute bottom-4 right-4 px-2 py-1 text-xs text-[var(--color-muted)] bg-[var(--color-sidebar)] rounded-[var(--radius-sm)] border border-[var(--color-border)]">

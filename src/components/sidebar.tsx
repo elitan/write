@@ -64,7 +64,7 @@ export function Sidebar({
                     size={16}
                     className="shrink-0 text-[var(--color-muted)]"
                   />
-                  <span className="truncate flex-1">{note.name}</span>
+                  <span className="truncate flex-1">{note.title}</span>
                   {hoveredPath === note.path && (
                     <button
                       onClick={(e) => {

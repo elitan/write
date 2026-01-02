@@ -106,3 +106,21 @@ body {
 .cm-editor .cm-scroller {
   overflow: auto;
 }
+
+.editor-title {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: transparent;
+  border: none;
+  outline: none;
+  padding: 0;
+  margin-bottom: 16px;
+}
+
+.editor-title::placeholder {
+  color: var(--color-muted);
+}
