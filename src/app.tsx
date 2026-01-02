@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Sidebar } from "./components/sidebar";
 import { Editor } from "./components/editor";
 import { EmptyState } from "./components/empty-state";
@@ -46,9 +47,16 @@ function App() {
   return (
     <div className="flex h-screen bg-[var(--color-bg)]">
       <div
-        data-tauri-drag-region
-        className="fixed top-0 left-0 right-0 h-[52px] z-50 bg-transparent"
-        style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
+        className="fixed top-0 left-0 right-0 h-[52px] z-50 bg-black/[0.001]"
+        onMouseDown={(e) => {
+          if (e.buttons === 1) {
+            if (e.detail === 2) {
+              getCurrentWindow().toggleMaximize();
+            } else {
+              getCurrentWindow().startDragging();
+            }
+          }
+        }}
       />
 
       <Sidebar
