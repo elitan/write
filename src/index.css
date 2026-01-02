@@ -95,8 +95,33 @@ body {
   background: transparent;
 }
 
-.cm-editor .cm-selectionBackground {
-  background: var(--color-accent-light) !important;
+.cm-editor .cm-selectionBackground,
+.cm-editor .cm-selectionMatch,
+.cm-editor .cm-content ::selection {
+  background: rgba(255, 140, 0, 0.35) !important;
+}
+
+.cm-editor.cm-focused .cm-selectionBackground,
+.cm-editor.cm-focused .cm-content ::selection {
+  background: rgba(255, 140, 0, 0.45) !important;
+}
+
+.cm-selectionLayer .cm-selectionBackground {
+  background: rgba(255, 140, 0, 0.35) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .cm-editor .cm-selectionBackground,
+  .cm-editor .cm-selectionMatch,
+  .cm-editor .cm-content ::selection,
+  .cm-selectionLayer .cm-selectionBackground {
+    background: rgba(255, 140, 0, 0.4) !important;
+  }
+
+  .cm-editor.cm-focused .cm-selectionBackground,
+  .cm-editor.cm-focused .cm-content ::selection {
+    background: rgba(255, 140, 0, 0.5) !important;
+  }
 }
 
 .cm-editor.cm-focused {
@@ -123,4 +148,46 @@ body {
 
 .editor-title::placeholder {
   color: var(--color-muted);
+}
+
+.cm-panels {
+  background: transparent !important;
+  border: none !important;
+}
+
+.cm-panels-bottom {
+  border: none !important;
+}
+
+.cm-vim-panel {
+  position: fixed !important;
+  bottom: 0;
+  left: 240px;
+  right: 0;
+  background: var(--color-bg);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 8px 24px 14px;
+  opacity: 0.6;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.cm-vim-panel input {
+  background: transparent;
+  color: var(--color-text);
+  border: none;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.cm-fat-cursor {
+  background: var(--color-accent) !important;
+  color: var(--color-bg) !important;
+}
+
+.cm-cursor-primary {
+  border-left-color: var(--color-accent) !important;
 }

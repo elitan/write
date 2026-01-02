@@ -1,14 +1,16 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { vim } from "@replit/codemirror-vim";
 import { invoke } from "@tauri-apps/api/core";
 
 interface EditorProps {
   content: string;
   filePath: string;
   isSaving: boolean;
+  vimMode: boolean;
   onSaved: () => void;
 }
 
@@ -33,13 +35,14 @@ function buildContent(title: string, body: string): string {
   return `# ${title}\n${body}`;
 }
 
-export function Editor({ content, filePath, isSaving, onSaved }: EditorProps) {
+export function Editor({ content, filePath, isSaving, vimMode, onSaved }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<number | null>(null);
   const lastSavedRef = useRef(content);
   const isSavingRef = useRef(false);
+  const vimCompartment = useRef(new Compartment());
 
   const parsed = useMemo(() => parseContent(content), [content]);
   const [title, setTitle] = useState(parsed.title);
@@ -128,6 +131,7 @@ export function Editor({ content, filePath, isSaving, onSaved }: EditorProps) {
     const state = EditorState.create({
       doc: parsed.body,
       extensions: [
+        vimCompartment.current.of(vimMode ? vim({ status: true }) : []),
         theme,
         markdown(),
         history(),
@@ -157,7 +161,7 @@ export function Editor({ content, filePath, isSaving, onSaved }: EditorProps) {
       }
       view.destroy();
     };
-  }, [filePath, content]);
+  }, [filePath, content, vimMode]);
 
   return (
     <div className="flex flex-col h-full">

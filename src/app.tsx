@@ -5,8 +5,10 @@ import { Editor } from "./components/editor";
 import { EmptyState } from "./components/empty-state";
 import { CommandPalette } from "./components/command-palette";
 import { UpdatePrompt } from "./components/update-prompt";
+import { SettingsPopover } from "./components/settings-popover";
 import { useFiles } from "./hooks/use-files";
 import { useUpdater } from "./hooks/use-updater";
+import { useSettings } from "./hooks/use-settings";
 
 function App() {
   const {
@@ -22,8 +24,10 @@ function App() {
   } = useFiles();
 
   const { updateAvailable, readyToInstall, restartAndInstall } = useUpdater();
+  const { settings, setSetting } = useSettings();
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -33,6 +37,9 @@ function App() {
       } else if (e.metaKey && e.key === "n") {
         e.preventDefault();
         createNote();
+      } else if (e.metaKey && e.key === ",") {
+        e.preventDefault();
+        setIsSettingsOpen(true);
       }
     }
 
@@ -69,15 +76,17 @@ function App() {
         onSelect={selectNote}
         onCreate={createNote}
         onDelete={deleteNote}
+        onSettingsClick={() => setIsSettingsOpen(true)}
       />
 
       <main className="flex-1 relative">
         {selectedPath ? (
           <Editor
-            key={selectedPath}
+            key={`${selectedPath}-${settings.vimMode}`}
             content={content}
             filePath={selectedPath}
             isSaving={isSaving}
+            vimMode={settings.vimMode}
             onSaved={onSaved}
           />
         ) : (
@@ -98,6 +107,13 @@ function App() {
           onRestart={restartAndInstall}
         />
       )}
+
+      <SettingsPopover
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        vimMode={settings.vimMode}
+        onVimModeChange={(v) => setSetting("vimMode", v)}
+      />
     </div>
   );
 }
