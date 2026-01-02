@@ -19,9 +19,12 @@ jobs:
             args: --target x86_64-apple-darwin
 
     runs-on: ${{ matrix.platform }}
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -43,8 +46,10 @@ jobs:
           security create-keychain -p actions build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p actions build.keychain
-          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-keychain-settings -lut 21600 build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
+          security find-identity -v -p codesigning build.keychain
           rm certificate.p12
 
       - name: Install dependencies
@@ -63,7 +68,35 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Write v__VERSION__
-          releaseBody: "See the assets below to download the app."
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  update-release-notes:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate release notes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          PREV_TAG=$(git describe --tags --abbrev=0 $TAG^ 2>/dev/null || echo "")
+
+          if [ -n "$PREV_TAG" ]; then
+            NOTES=$(git log --pretty=format:"- %s" $PREV_TAG..$TAG)
+          else
+            NOTES=$(git log --pretty=format:"- %s" $TAG)
+          fi
+
+          gh release edit $TAG --notes "## What's Changed
+
+          $NOTES
+
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG:-initial}...$TAG"
