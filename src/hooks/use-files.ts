@@ -77,6 +77,7 @@ export function useFiles() {
     content,
     isLoading,
     isSaving,
+    loadNotes,
     selectNote,
     onSaved,
     createNote,

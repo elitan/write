@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { Sidebar } from "./components/sidebar";
 import { Editor } from "./components/editor";
@@ -19,6 +20,7 @@ function App() {
     content,
     isLoading,
     isSaving,
+    loadNotes,
     selectNote,
     onSaved,
     createNote,
@@ -72,6 +74,15 @@ function App() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [createNote, selectedPath, handleDeleteRequest]);
+
+  useEffect(() => {
+    const unlisten = listen("tauri://focus", () => {
+      loadNotes();
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [loadNotes]);
 
   if (isLoading) {
     return (
