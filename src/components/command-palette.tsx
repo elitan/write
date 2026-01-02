@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FileText, RefreshCw, Settings } from "lucide-react";
+import { Search, FileText, RefreshCw, Settings, Trash2 } from "lucide-react";
 import Fuse from "fuse.js";
 import type { NoteEntry } from "../hooks/use-files";
 
@@ -7,7 +7,7 @@ type CommandItem = {
   type: "command";
   id: string;
   title: string;
-  icon: "settings" | "update";
+  icon: "settings" | "update" | "delete";
   action: () => void;
 };
 
@@ -26,6 +26,8 @@ interface CommandPaletteProps {
   onSelect: (path: string) => void;
   onCheckForUpdates: () => void;
   onOpenSettings: () => void;
+  selectedPath: string | null;
+  onDeleteCurrent: () => void;
 }
 
 export function CommandPalette({
@@ -35,6 +37,8 @@ export function CommandPalette({
   onSelect,
   onCheckForUpdates,
   onOpenSettings,
+  selectedPath,
+  onDeleteCurrent,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -43,6 +47,9 @@ export function CommandPalette({
   const commands: CommandItem[] = [
     { type: "command", id: "settings", title: "Settings", icon: "settings", action: onOpenSettings },
     { type: "command", id: "update", title: "Check for updates", icon: "update", action: onCheckForUpdates },
+    ...(selectedPath
+      ? [{ type: "command" as const, id: "delete", title: "Delete current page", icon: "delete" as const, action: onDeleteCurrent }]
+      : []),
   ];
 
   const noteItems: NoteItem[] = notes.map((n) => ({ type: "note", path: n.path, title: n.title }));
@@ -122,6 +129,9 @@ export function CommandPalette({
     }
     if (item.icon === "settings") {
       return <Settings size={16} className="shrink-0 text-[var(--color-muted)]" />;
+    }
+    if (item.icon === "delete") {
+      return <Trash2 size={16} className="shrink-0 text-[var(--color-muted)]" />;
     }
     return <RefreshCw size={16} className="shrink-0 text-[var(--color-muted)]" />;
   }
