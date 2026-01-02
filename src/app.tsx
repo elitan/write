@@ -23,7 +23,7 @@ function App() {
     deleteNote,
   } = useFiles();
 
-  const { updateAvailable, readyToInstall, restartAndInstall } = useUpdater();
+  const { updateAvailable, readyToInstall, restartAndInstall, checkForUpdates } = useUpdater();
   const { settings, setSetting } = useSettings();
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
@@ -99,6 +99,8 @@ function App() {
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         onSelect={selectNote}
+        onCheckForUpdates={checkForUpdates}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       {readyToInstall && updateAvailable && (

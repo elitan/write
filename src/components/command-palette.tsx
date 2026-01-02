@@ -1,13 +1,31 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FileText } from "lucide-react";
+import { Search, FileText, RefreshCw, Settings } from "lucide-react";
 import Fuse from "fuse.js";
 import type { NoteEntry } from "../hooks/use-files";
+
+type CommandItem = {
+  type: "command";
+  id: string;
+  title: string;
+  icon: "settings" | "update";
+  action: () => void;
+};
+
+type NoteItem = {
+  type: "note";
+  path: string;
+  title: string;
+};
+
+type PaletteItem = CommandItem | NoteItem;
 
 interface CommandPaletteProps {
   notes: NoteEntry[];
   isOpen: boolean;
   onClose: () => void;
   onSelect: (path: string) => void;
+  onCheckForUpdates: () => void;
+  onOpenSettings: () => void;
 }
 
 export function CommandPalette({
@@ -15,25 +33,35 @@ export function CommandPalette({
   isOpen,
   onClose,
   onSelect,
+  onCheckForUpdates,
+  onOpenSettings,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const commands: CommandItem[] = [
+    { type: "command", id: "settings", title: "Settings", icon: "settings", action: onOpenSettings },
+    { type: "command", id: "update", title: "Check for updates", icon: "update", action: onCheckForUpdates },
+  ];
+
+  const noteItems: NoteItem[] = notes.map((n) => ({ type: "note", path: n.path, title: n.title }));
+  const allItems: PaletteItem[] = [...commands, ...noteItems];
+
   const fuse = useMemo(
     () =>
-      new Fuse(notes, {
+      new Fuse(allItems, {
         keys: ["title"],
         threshold: 0.4,
         includeScore: true,
       }),
-    [notes]
+    [allItems]
   );
 
   const results = useMemo(() => {
-    if (!query.trim()) return notes;
+    if (!query.trim()) return allItems;
     return fuse.search(query).map((r) => r.item);
-  }, [query, fuse, notes]);
+  }, [query, fuse, allItems]);
 
   useEffect(() => {
     if (isOpen) {
@@ -46,6 +74,15 @@ export function CommandPalette({
   useEffect(() => {
     setSelectedIndex(0);
   }, [query]);
+
+  function handleSelect(item: PaletteItem) {
+    if (item.type === "command") {
+      item.action();
+    } else {
+      onSelect(item.path);
+    }
+    onClose();
+  }
 
   useEffect(() => {
     if (!isOpen) return;
@@ -63,8 +100,7 @@ export function CommandPalette({
         case "Enter":
           e.preventDefault();
           if (results[selectedIndex]) {
-            onSelect(results[selectedIndex].path);
-            onClose();
+            handleSelect(results[selectedIndex]);
           }
           break;
         case "Escape":
@@ -76,9 +112,19 @@ export function CommandPalette({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, results, selectedIndex, onSelect, onClose]);
+  }, [isOpen, results, selectedIndex, onClose]);
 
   if (!isOpen) return null;
+
+  function getIcon(item: PaletteItem) {
+    if (item.type === "note") {
+      return <FileText size={16} className="shrink-0 text-[var(--color-muted)]" />;
+    }
+    if (item.icon === "settings") {
+      return <Settings size={16} className="shrink-0 text-[var(--color-muted)]" />;
+    }
+    return <RefreshCw size={16} className="shrink-0 text-[var(--color-muted)]" />;
+  }
 
   return (
     <div
@@ -101,7 +147,7 @@ export function CommandPalette({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search notes..."
+            placeholder="Search..."
             className="flex-1 bg-transparent outline-none text-[15px] placeholder:text-[var(--color-muted)]"
           />
           <kbd className="px-1.5 py-0.5 text-[11px] text-[var(--color-muted)] bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded">
@@ -112,28 +158,22 @@ export function CommandPalette({
         <div className="max-h-[320px] overflow-y-auto">
           {results.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-[var(--color-muted)]">
-              No notes found
+              No results found
             </div>
           ) : (
             <ul className="py-2">
-              {results.map((note, index) => (
-                <li key={note.path}>
+              {results.map((item, index) => (
+                <li key={item.type === "note" ? item.path : item.id}>
                   <button
-                    onClick={() => {
-                      onSelect(note.path);
-                      onClose();
-                    }}
+                    onClick={() => handleSelect(item)}
                     className={`flex items-center gap-3 w-full px-4 py-2.5 text-left transition-colors ${
                       index === selectedIndex
                         ? "bg-[var(--color-accent-light)]"
                         : "hover:bg-[var(--color-sidebar)]"
                     }`}
                   >
-                    <FileText
-                      size={16}
-                      className="shrink-0 text-[var(--color-muted)]"
-                    />
-                    <span className="truncate text-[14px]">{note.title}</span>
+                    {getIcon(item)}
+                    <span className="truncate text-[14px]">{item.title}</span>
                     {index === selectedIndex && (
                       <kbd className="ml-auto px-1.5 py-0.5 text-[11px] text-[var(--color-muted)] bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded">
                         ↵

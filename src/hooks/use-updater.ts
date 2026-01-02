@@ -55,5 +55,6 @@ export function useUpdater() {
     readyToInstall,
     isDownloading,
     restartAndInstall,
+    checkForUpdates: checkAndDownload,
   };
 }
