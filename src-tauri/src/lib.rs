@@ -96,7 +96,7 @@ fn create_note() -> Result<String, String> {
 
     let path = notes_dir.join(format!("{}.md", timestamp));
 
-    fs::write(&path, "# Untitled\n\n").map_err(|e| e.to_string())?;
+    fs::write(&path, "\n").map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
 }
 

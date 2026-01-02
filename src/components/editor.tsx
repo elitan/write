@@ -53,8 +53,11 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved }: Editor
     setTitle(newParsed.title);
     titleRef.current = newParsed.title;
     setTimeout(() => {
-      titleInputRef.current?.focus();
-      titleInputRef.current?.select();
+      if (!newParsed.title) {
+        titleInputRef.current?.focus();
+      } else {
+        viewRef.current?.focus();
+      }
     }, 0);
   }, [filePath]);
 
@@ -174,7 +177,7 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved }: Editor
               value={title}
               onChange={(e) => handleTitleChange(e.target.value)}
               onKeyDown={handleTitleKeyDown}
-              placeholder="Untitled"
+              placeholder="New Page"
               className="editor-title"
             />
           </div>
