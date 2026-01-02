@@ -45,6 +45,9 @@ export function useUpdater() {
 
   useEffect(() => {
     checkAndDownload();
+
+    const interval = setInterval(checkAndDownload, 15 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   return {
