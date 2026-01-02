@@ -1,56 +1,61 @@
-import { FileText, Plus } from "lucide-react";
-
-interface EmptyStateProps {
-  onCreate: () => void;
-}
-
-export function EmptyState({ onCreate }: EmptyStateProps) {
+export function EmptyState() {
   return (
     <div
-      className="flex flex-col items-center justify-center h-full text-center px-8"
+      className="flex flex-col items-center justify-center h-full"
       style={{ paddingTop: 52 }}
     >
-      <div className="w-16 h-16 mb-6 rounded-full bg-[var(--color-sidebar)] border border-[var(--color-border)] flex items-center justify-center">
-        <FileText size={28} className="text-[var(--color-muted)]" />
-      </div>
-      <h2 className="text-lg font-medium mb-2">No note selected</h2>
-      <p className="text-sm text-[var(--color-muted)] mb-6 max-w-[280px]">
-        Select a note from the sidebar or create a new one to get started.
-      </p>
-      <button
-        onClick={onCreate}
-        className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-[var(--radius-sm)]
-                   bg-[var(--color-text)] text-[var(--color-bg)]
-                   hover:opacity-90 transition-opacity duration-[var(--transition-normal)]
-                   focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:ring-offset-2"
+      <svg
+        width="48"
+        height="48"
+        viewBox="0 0 512 512"
+        fill="none"
+        className="mb-12 opacity-20"
       >
-        <Plus size={16} />
-        Create Note
-      </button>
-      <div className="mt-8 flex flex-col gap-2 text-xs text-[var(--color-muted)]">
-        <p>
-          <kbd className="px-1.5 py-0.5 bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded">
-            ⌘
-          </kbd>
-          {" "}
-          <kbd className="px-1.5 py-0.5 bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded">
-            N
-          </kbd>
-          {" "}
-          new note
-        </p>
-        <p>
-          <kbd className="px-1.5 py-0.5 bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded">
-            ⌘
-          </kbd>
-          {" "}
-          <kbd className="px-1.5 py-0.5 bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded">
-            K
-          </kbd>
-          {" "}
-          search notes
-        </p>
+        <rect width="512" height="512" rx="108" fill="currentColor" />
+        <path
+          d="M140 156C140 149.373 145.373 144 152 144H320C326.627 144 332 149.373 332 156C332 162.627 326.627 168 320 168H152C145.373 168 140 162.627 140 156Z"
+          fill="var(--color-bg)"
+        />
+        <path
+          d="M140 216C140 209.373 145.373 204 152 204H280C286.627 204 292 209.373 292 216C292 222.627 286.627 228 280 228H152C145.373 228 140 222.627 140 216Z"
+          fill="var(--color-bg)"
+          fillOpacity="0.6"
+        />
+        <path
+          d="M140 276C140 269.373 145.373 264 152 264H240C246.627 264 252 269.373 252 276C252 282.627 246.627 288 240 288H152C145.373 288 140 282.627 140 276Z"
+          fill="var(--color-bg)"
+          fillOpacity="0.4"
+        />
+        <path
+          d="M140 336C140 329.373 145.373 324 152 324H200C206.627 324 212 329.373 212 336C212 342.627 206.627 348 200 348H152C145.373 348 140 342.627 140 336Z"
+          fill="var(--color-bg)"
+          fillOpacity="0.2"
+        />
+      </svg>
+
+      <div className="flex flex-col gap-3 text-[13px] text-[var(--color-muted)]">
+        <Shortcut keys={["⌘", "N"]} label="New" />
+        <Shortcut keys={["⌘", "K"]} label="Search" />
+        <Shortcut keys={["⌘", ","]} label="Settings" />
       </div>
+    </div>
+  );
+}
+
+function Shortcut({ keys, label }: { keys: string[]; label: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex gap-1">
+        {keys.map((key) => (
+          <kbd
+            key={key}
+            className="w-6 h-6 flex items-center justify-center text-[11px] bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded-md"
+          >
+            {key}
+          </kbd>
+        ))}
+      </div>
+      <span>{label}</span>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Plus, FileText, Trash2, Settings } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { NoteEntry } from "../hooks/use-files";
 
@@ -6,18 +6,14 @@ interface SidebarProps {
   notes: NoteEntry[];
   selectedPath: string | null;
   onSelect: (path: string) => void;
-  onCreate: () => void;
   onDelete: (path: string) => void;
-  onSettingsClick: () => void;
 }
 
 export function Sidebar({
   notes,
   selectedPath,
   onSelect,
-  onCreate,
   onDelete,
-  onSettingsClick,
 }: SidebarProps) {
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
 
@@ -26,20 +22,7 @@ export function Sidebar({
       className="flex flex-col h-full w-60 border-r border-[var(--color-border)] bg-[var(--color-sidebar)]"
       style={{ paddingTop: 52 }}
     >
-      <div className="p-3">
-        <button
-          onClick={onCreate}
-          className="flex items-center gap-2 w-full px-3 py-2 text-sm font-medium rounded-[var(--radius-sm)]
-                     bg-[var(--color-bg)] border border-[var(--color-border)]
-                     hover:border-[var(--color-muted)] transition-colors duration-[var(--transition-normal)]
-                     focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] focus:ring-offset-2 focus:ring-offset-[var(--color-sidebar)]"
-        >
-          <Plus size={16} />
-          New Note
-        </button>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-2">
+      <nav className="flex-1 overflow-y-auto px-2 pt-3">
         {notes.length === 0 ? (
           <p className="px-3 py-8 text-center text-sm text-[var(--color-muted)]">
             No notes yet
@@ -87,16 +70,6 @@ export function Sidebar({
           </ul>
         )}
       </nav>
-
-      <div className="p-3 border-t border-[var(--color-border)]">
-        <button
-          onClick={onSettingsClick}
-          className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--color-muted)] rounded-[var(--radius-sm)] hover:bg-[var(--color-bg)] transition-colors w-full"
-        >
-          <Settings size={16} />
-          Settings
-        </button>
-      </div>
     </aside>
   );
 }

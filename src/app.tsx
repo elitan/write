@@ -100,9 +100,7 @@ function App() {
         notes={notes}
         selectedPath={selectedPath}
         onSelect={selectNote}
-        onCreate={createNote}
         onDelete={handleDeleteRequest}
-        onSettingsClick={() => setIsSettingsOpen(true)}
       />
 
       <main className="flex-1 relative">
@@ -116,7 +114,7 @@ function App() {
             onSaved={onSaved}
           />
         ) : (
-          <EmptyState onCreate={createNote} />
+          <EmptyState />
         )}
       </main>
 
