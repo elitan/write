@@ -68,7 +68,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Write v__VERSION__
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
 
