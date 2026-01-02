@@ -9,8 +9,8 @@
   --color-border: #e5e5e5;
   --color-text: #171717;
   --color-muted: #737373;
-  --color-accent: #0066ff;
-  --color-accent-light: #0066ff1a;
+  --color-accent: #22c55e;
+  --color-accent-light: #22c55e1a;
 
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -26,7 +26,7 @@
     --color-border: #262626;
     --color-text: #fafafa;
     --color-muted: #a3a3a3;
-    --color-accent-light: #0066ff33;
+    --color-accent-light: #22c55e33;
   }
 }
 
@@ -98,16 +98,16 @@ body {
 .cm-editor .cm-selectionBackground,
 .cm-editor .cm-selectionMatch,
 .cm-editor .cm-content ::selection {
-  background: rgba(255, 140, 0, 0.35) !important;
+  background: rgba(34, 197, 94, 0.35) !important;
 }
 
 .cm-editor.cm-focused .cm-selectionBackground,
 .cm-editor.cm-focused .cm-content ::selection {
-  background: rgba(255, 140, 0, 0.45) !important;
+  background: rgba(34, 197, 94, 0.45) !important;
 }
 
 .cm-selectionLayer .cm-selectionBackground {
-  background: rgba(255, 140, 0, 0.35) !important;
+  background: rgba(34, 197, 94, 0.35) !important;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -115,12 +115,12 @@ body {
   .cm-editor .cm-selectionMatch,
   .cm-editor .cm-content ::selection,
   .cm-selectionLayer .cm-selectionBackground {
-    background: rgba(255, 140, 0, 0.4) !important;
+    background: rgba(34, 197, 94, 0.4) !important;
   }
 
   .cm-editor.cm-focused .cm-selectionBackground,
   .cm-editor.cm-focused .cm-content ::selection {
-    background: rgba(255, 140, 0, 0.5) !important;
+    background: rgba(34, 197, 94, 0.5) !important;
   }
 }
 

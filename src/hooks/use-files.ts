@@ -41,6 +41,11 @@ export function useFiles() {
     }
   }, []);
 
+  const deselectNote = useCallback(() => {
+    setSelectedPath(null);
+    setContent("");
+  }, []);
+
   const onSaved = useCallback(() => {
     loadNotes();
   }, [loadNotes]);
@@ -79,6 +84,7 @@ export function useFiles() {
     isSaving,
     loadNotes,
     selectNote,
+    deselectNote,
     onSaved,
     createNote,
     deleteNote,

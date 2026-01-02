@@ -22,6 +22,7 @@ function App() {
     isSaving,
     loadNotes,
     selectNote,
+    deselectNote,
     onSaved,
     createNote,
     deleteNote,
@@ -33,6 +34,12 @@ function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ path: string; title: string } | null>(null);
+  const [sidebarFocused, setSidebarFocused] = useState(false);
+
+  const handleCloseEditor = useCallback(() => {
+    deselectNote();
+    setSidebarFocused(true);
+  }, [deselectNote]);
 
   const handleDeleteRequest = useCallback(
     async (path: string) => {
@@ -68,6 +75,9 @@ function App() {
       } else if (e.metaKey && e.key === "Backspace" && selectedPath) {
         e.preventDefault();
         handleDeleteRequest(selectedPath);
+      } else if (e.metaKey && e.shiftKey && e.key === "e") {
+        e.preventDefault();
+        setSidebarFocused(true);
       }
     }
 
@@ -112,6 +122,8 @@ function App() {
         selectedPath={selectedPath}
         onSelect={selectNote}
         onDelete={handleDeleteRequest}
+        isFocused={sidebarFocused}
+        onFocusChange={setSidebarFocused}
       />
 
       <main className="flex-1 relative">
@@ -123,6 +135,7 @@ function App() {
             isSaving={isSaving}
             vimMode={settings.vimMode}
             onSaved={onSaved}
+            onClose={handleCloseEditor}
           />
         ) : (
           <EmptyState />

@@ -3,7 +3,7 @@ import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
-import { vim } from "@replit/codemirror-vim";
+import { vim, Vim } from "@replit/codemirror-vim";
 import { invoke } from "@tauri-apps/api/core";
 
 interface EditorProps {
@@ -12,6 +12,7 @@ interface EditorProps {
   isSaving: boolean;
   vimMode: boolean;
   onSaved: () => void;
+  onClose: () => void;
 }
 
 function parseContent(content: string): { title: string; body: string } {
@@ -35,7 +36,7 @@ function buildContent(title: string, body: string): string {
   return `# ${title}\n${body}`;
 }
 
-export function Editor({ content, filePath, isSaving, vimMode, onSaved }: EditorProps) {
+export function Editor({ content, filePath, isSaving, vimMode, onSaved, onClose }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -60,6 +61,12 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved }: Editor
       }
     }, 0);
   }, [filePath]);
+
+  useEffect(() => {
+    if (!vimMode) return;
+    Vim.defineEx("q", "q", onClose);
+    Vim.defineEx("wq", "wq", onClose);
+  }, [vimMode, onClose]);
 
   const saveNow = useCallback(
     async (text: string, path: string) => {
