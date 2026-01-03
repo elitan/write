@@ -1,11 +1,117 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
 use tauri::menu::{AboutMetadata, MenuBuilder, SubmenuBuilder};
 
-fn get_notes_dir() -> PathBuf {
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Workspace {
+    pub id: String,
+    pub name: String,
+    pub shortcut: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct WorkspaceConfig {
+    pub workspaces: Vec<Workspace>,
+    pub active_workspace_id: String,
+}
+
+pub struct AppState {
+    pub config: Mutex<WorkspaceConfig>,
+}
+
+fn get_notes_root() -> PathBuf {
     let home = dirs::document_dir().unwrap_or_else(|| PathBuf::from("."));
     home.join("Notes")
+}
+
+fn get_config_path() -> PathBuf {
+    let data_dir = dirs::data_dir().unwrap_or_else(|| PathBuf::from("."));
+    data_dir.join("com.write.app").join("workspaces.json")
+}
+
+fn load_config() -> WorkspaceConfig {
+    let path = get_config_path();
+    if path.exists() {
+        if let Ok(content) = fs::read_to_string(&path) {
+            if let Ok(config) = serde_json::from_str(&content) {
+                return config;
+            }
+        }
+    }
+    WorkspaceConfig {
+        workspaces: vec![],
+        active_workspace_id: String::new(),
+    }
+}
+
+fn save_config(config: &WorkspaceConfig) -> Result<(), String> {
+    let path = get_config_path();
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let content = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    fs::write(&path, content).map_err(|e| e.to_string())
+}
+
+fn get_workspace_dir(workspace_id: &str) -> PathBuf {
+    get_notes_root().join(workspace_id)
+}
+
+fn migrate_existing_notes() -> Result<WorkspaceConfig, String> {
+    let notes_root = get_notes_root();
+    let personal_dir = notes_root.join("Personal");
+
+    if !notes_root.exists() {
+        fs::create_dir_all(&personal_dir).map_err(|e| e.to_string())?;
+    } else {
+        fs::create_dir_all(&personal_dir).map_err(|e| e.to_string())?;
+
+        let entries: Vec<_> = fs::read_dir(&notes_root)
+            .map_err(|e| e.to_string())?
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                let path = e.path();
+                path.is_file() && path.extension().is_some_and(|ext| ext == "md")
+            })
+            .collect();
+
+        for entry in entries {
+            let old_path = entry.path();
+            let file_name = old_path.file_name().unwrap();
+            let new_path = personal_dir.join(file_name);
+            fs::rename(&old_path, &new_path).map_err(|e| e.to_string())?;
+        }
+    }
+
+    let config = WorkspaceConfig {
+        workspaces: vec![Workspace {
+            id: "Personal".to_string(),
+            name: "Personal".to_string(),
+            shortcut: Some("1".to_string()),
+        }],
+        active_workspace_id: "Personal".to_string(),
+    };
+
+    save_config(&config)?;
+    Ok(config)
+}
+
+fn init_workspaces() -> WorkspaceConfig {
+    let config_path = get_config_path();
+    if config_path.exists() {
+        load_config()
+    } else {
+        migrate_existing_notes().unwrap_or_else(|_| WorkspaceConfig {
+            workspaces: vec![Workspace {
+                id: "Personal".to_string(),
+                name: "Personal".to_string(),
+                shortcut: Some("1".to_string()),
+            }],
+            active_workspace_id: "Personal".to_string(),
+        })
+    }
 }
 
 fn slugify(text: &str) -> String {
@@ -111,8 +217,10 @@ fn parse_title(content: &str) -> String {
 }
 
 #[tauri::command]
-fn ensure_notes_dir() -> Result<String, String> {
-    let notes_dir = get_notes_dir();
+fn ensure_notes_dir(state: tauri::State<AppState>) -> Result<String, String> {
+    let config = state.config.lock().unwrap();
+    let notes_dir = get_workspace_dir(&config.active_workspace_id);
+    drop(config);
     if !notes_dir.exists() {
         fs::create_dir_all(&notes_dir).map_err(|e| e.to_string())?;
     }
@@ -120,8 +228,98 @@ fn ensure_notes_dir() -> Result<String, String> {
 }
 
 #[tauri::command]
-fn list_notes() -> Result<Vec<NoteEntry>, String> {
-    let notes_dir = get_notes_dir();
+fn get_workspaces(state: tauri::State<AppState>) -> Result<WorkspaceConfig, String> {
+    let config = state.config.lock().unwrap();
+    Ok(config.clone())
+}
+
+#[tauri::command]
+fn set_active_workspace(state: tauri::State<AppState>, workspace_id: String) -> Result<(), String> {
+    let mut config = state.config.lock().unwrap();
+    if !config.workspaces.iter().any(|w| w.id == workspace_id) {
+        return Err("Workspace not found".to_string());
+    }
+    config.active_workspace_id = workspace_id;
+    save_config(&config)
+}
+
+#[tauri::command]
+fn create_workspace(state: tauri::State<AppState>, name: String) -> Result<Workspace, String> {
+    let mut config = state.config.lock().unwrap();
+
+    let id = slugify(&name);
+    if id.is_empty() {
+        return Err("Invalid workspace name".to_string());
+    }
+    if config.workspaces.iter().any(|w| w.id == id) {
+        return Err("Workspace already exists".to_string());
+    }
+
+    let workspace_dir = get_workspace_dir(&id);
+    fs::create_dir_all(&workspace_dir).map_err(|e| e.to_string())?;
+
+    let next_shortcut = (1..=9)
+        .map(|n| n.to_string())
+        .find(|s| !config.workspaces.iter().any(|w| w.shortcut.as_ref() == Some(s)));
+
+    let workspace = Workspace {
+        id: id.clone(),
+        name,
+        shortcut: next_shortcut,
+    };
+
+    config.workspaces.push(workspace.clone());
+    save_config(&config)?;
+
+    Ok(workspace)
+}
+
+#[tauri::command]
+fn delete_workspace(state: tauri::State<AppState>, workspace_id: String) -> Result<(), String> {
+    let mut config = state.config.lock().unwrap();
+
+    if config.workspaces.len() <= 1 {
+        return Err("Cannot delete the last workspace".to_string());
+    }
+
+    let idx = config
+        .workspaces
+        .iter()
+        .position(|w| w.id == workspace_id)
+        .ok_or("Workspace not found")?;
+
+    config.workspaces.remove(idx);
+
+    if config.active_workspace_id == workspace_id {
+        config.active_workspace_id = config.workspaces[0].id.clone();
+    }
+
+    save_config(&config)
+}
+
+#[tauri::command]
+fn rename_workspace(state: tauri::State<AppState>, workspace_id: String, new_name: String) -> Result<Workspace, String> {
+    let mut config = state.config.lock().unwrap();
+
+    let workspace = config
+        .workspaces
+        .iter_mut()
+        .find(|w| w.id == workspace_id)
+        .ok_or("Workspace not found")?;
+
+    workspace.name = new_name;
+    let updated = workspace.clone();
+
+    save_config(&config)?;
+    Ok(updated)
+}
+
+#[tauri::command]
+fn list_notes(state: tauri::State<AppState>) -> Result<Vec<NoteEntry>, String> {
+    let config = state.config.lock().unwrap();
+    let notes_dir = get_workspace_dir(&config.active_workspace_id);
+    drop(config);
+
     if !notes_dir.exists() {
         return Ok(vec![]);
     }
@@ -214,8 +412,11 @@ fn write_note(path: String, content: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn create_note() -> Result<String, String> {
-    let notes_dir = get_notes_dir();
+fn create_note(state: tauri::State<AppState>) -> Result<String, String> {
+    let config = state.config.lock().unwrap();
+    let notes_dir = get_workspace_dir(&config.active_workspace_id);
+    drop(config);
+
     if !notes_dir.exists() {
         fs::create_dir_all(&notes_dir).map_err(|e| e.to_string())?;
     }
@@ -256,8 +457,10 @@ fn reveal_in_finder(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn reorder_note(path: String, new_index: usize) -> Result<String, String> {
-    let notes_dir = get_notes_dir();
+fn reorder_note(state: tauri::State<AppState>, path: String, new_index: usize) -> Result<String, String> {
+    let config = state.config.lock().unwrap();
+    let notes_dir = get_workspace_dir(&config.active_workspace_id);
+    drop(config);
 
     let mut entries: Vec<(PathBuf, u64, String)> = fs::read_dir(&notes_dir)
         .map_err(|e| e.to_string())?
@@ -341,7 +544,12 @@ fn reorder_note(path: String, new_index: usize) -> Result<String, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let config = init_workspaces();
+
     tauri::Builder::default()
+        .manage(AppState {
+            config: Mutex::new(config),
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
@@ -402,7 +610,12 @@ pub fn run() {
             delete_note,
             rename_note,
             reveal_in_finder,
-            reorder_note
+            reorder_note,
+            get_workspaces,
+            set_active_workspace,
+            create_workspace,
+            delete_workspace,
+            rename_workspace
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

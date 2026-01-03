@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -8,10 +8,12 @@ import { EmptyState } from "./components/empty-state";
 import { CommandPalette } from "./components/command-palette";
 import { UpdatePrompt } from "./components/update-prompt";
 import { SettingsPopover } from "./components/settings-popover";
+import { WorkspaceSwitcher } from "./components/workspace-switcher";
 import { Modal } from "./components/modal";
-import { useFiles } from "./hooks/use-files";
+import { useFiles, type NoteEntry } from "./hooks/use-files";
 import { useUpdater } from "./hooks/use-updater";
 import { useSettings } from "./hooks/use-settings";
+import { useWorkspaces } from "./hooks/use-workspaces";
 
 function App() {
   const {
@@ -32,9 +34,20 @@ function App() {
 
   const { updateAvailable, readyToInstall, restartAndInstall, checkForUpdates } = useUpdater();
   const { settings, setSetting } = useSettings();
+  const {
+    workspaces,
+    activeWorkspace,
+    activeWorkspaceId,
+    isLoading: isWorkspacesLoading,
+    switchWorkspace,
+    createWorkspace,
+    deleteWorkspace,
+    renameWorkspace,
+  } = useWorkspaces();
 
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isWorkspaceSwitcherOpen, setIsWorkspaceSwitcherOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ path: string; title: string } | null>(null);
   const [sidebarFocused, setSidebarFocused] = useState(false);
 
@@ -80,12 +93,21 @@ function App() {
       } else if (e.metaKey && e.shiftKey && e.key === "e") {
         e.preventDefault();
         setSidebarFocused(true);
+      } else if (e.ctrlKey && e.key === "Tab") {
+        e.preventDefault();
+        setIsWorkspaceSwitcherOpen(true);
+      } else if (e.metaKey && /^[1-9]$/.test(e.key)) {
+        const workspace = workspaces.find((w) => w.shortcut === e.key);
+        if (workspace && workspace.id !== activeWorkspaceId) {
+          e.preventDefault();
+          switchWorkspace(workspace.id);
+        }
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [createNote, selectedPath, handleDeleteRequest]);
+  }, [createNote, selectedPath, handleDeleteRequest, workspaces, activeWorkspaceId, switchWorkspace]);
 
   useEffect(() => {
     const unlisten = listen("tauri://focus", () => {
@@ -96,7 +118,41 @@ function App() {
     };
   }, [loadNotes]);
 
-  if (isLoading) {
+  const prevWorkspaceRef = useRef(activeWorkspaceId);
+
+  useEffect(() => {
+    if (prevWorkspaceRef.current !== activeWorkspaceId) {
+      prevWorkspaceRef.current = activeWorkspaceId;
+      return;
+    }
+    if (selectedPath && activeWorkspaceId) {
+      const key = `write-workspace-${activeWorkspaceId}-selected`;
+      localStorage.setItem(key, selectedPath);
+    }
+  }, [selectedPath, activeWorkspaceId]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) return;
+
+    async function loadWorkspaceNotes() {
+      deselectNote();
+      await loadNotes();
+
+      const key = `write-workspace-${activeWorkspaceId}-selected`;
+      const savedPath = localStorage.getItem(key);
+      const entries = await invoke<NoteEntry[]>("list_notes");
+
+      if (savedPath && entries.some((n) => n.path === savedPath)) {
+        selectNote(savedPath);
+      } else if (entries.length > 0) {
+        selectNote(entries[0].path);
+      }
+    }
+
+    loadWorkspaceNotes();
+  }, [activeWorkspaceId]);
+
+  if (isLoading || isWorkspacesLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-pulse text-[var(--color-muted)]">Loading...</div>
@@ -127,6 +183,8 @@ function App() {
         onReorder={reorderNote}
         isFocused={sidebarFocused}
         onFocusChange={setSidebarFocused}
+        activeWorkspace={activeWorkspace}
+        onOpenWorkspaceSwitcher={() => setIsWorkspaceSwitcherOpen(true)}
       />
 
       <main className="flex-1 relative">
@@ -169,6 +227,24 @@ function App() {
         onClose={() => setIsSettingsOpen(false)}
         vimMode={settings.vimMode}
         onVimModeChange={(v) => setSetting("vimMode", v)}
+      />
+
+      <WorkspaceSwitcher
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        isOpen={isWorkspaceSwitcherOpen}
+        onClose={() => setIsWorkspaceSwitcherOpen(false)}
+        onSelect={(id) => {
+          switchWorkspace(id);
+          setIsWorkspaceSwitcherOpen(false);
+        }}
+        onCreate={(name) => {
+          createWorkspace(name).then((w) => {
+            switchWorkspace(w.id);
+          });
+        }}
+        onDelete={deleteWorkspace}
+        onRename={renameWorkspace}
       />
 
       <Modal

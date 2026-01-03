@@ -1,4 +1,4 @@
-import { FileText, Trash2 } from "lucide-react";
+import { FileText, Trash2, ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
   DndContext,
@@ -17,6 +17,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { NoteEntry } from "../hooks/use-files";
+import type { Workspace } from "../hooks/use-workspaces";
 
 interface SidebarProps {
   notes: NoteEntry[];
@@ -26,6 +27,8 @@ interface SidebarProps {
   onReorder: (path: string, newIndex: number) => void;
   isFocused: boolean;
   onFocusChange: (focused: boolean) => void;
+  activeWorkspace: Workspace | null;
+  onOpenWorkspaceSwitcher: () => void;
 }
 
 interface SortableItemProps {
@@ -114,6 +117,8 @@ export function Sidebar({
   onReorder,
   isFocused,
   onFocusChange,
+  activeWorkspace,
+  onOpenWorkspaceSwitcher,
 }: SidebarProps) {
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -186,7 +191,15 @@ export function Sidebar({
       }`}
       style={{ paddingTop: 52 }}
     >
-      <nav className="flex-1 overflow-y-auto px-2 pt-3">
+      <button
+        onClick={onOpenWorkspaceSwitcher}
+        className="flex items-center justify-between mx-2 mt-3 px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)] rounded-[var(--radius-sm)] transition-colors"
+      >
+        <span className="truncate">{activeWorkspace?.name || "Workspace"}</span>
+        <ChevronDown size={14} className="shrink-0" />
+      </button>
+
+      <nav className="flex-1 overflow-y-auto px-2 pt-2">
         {notes.length === 0 ? (
           <p className="px-3 py-8 text-center text-sm text-[var(--color-muted)]">
             No notes yet
