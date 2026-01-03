@@ -27,6 +27,7 @@ function App() {
     onPathChanged,
     createNote,
     deleteNote,
+    reorderNote,
   } = useFiles();
 
   const { updateAvailable, readyToInstall, restartAndInstall, checkForUpdates } = useUpdater();
@@ -123,6 +124,7 @@ function App() {
         selectedPath={selectedPath}
         onSelect={selectNote}
         onDelete={handleDeleteRequest}
+        onReorder={reorderNote}
         isFocused={sidebarFocused}
         onFocusChange={setSidebarFocused}
       />

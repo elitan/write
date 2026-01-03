@@ -80,6 +80,24 @@ export function useFiles() {
     [selectedPath, loadNotes]
   );
 
+  const reorderNote = useCallback(
+    async (path: string, newIndex: number) => {
+      try {
+        const newPath = await invoke<string>("reorder_note", {
+          path,
+          newIndex,
+        });
+        if (selectedPath === path) {
+          setSelectedPath(newPath);
+        }
+        await loadNotes();
+      } catch (err) {
+        console.error("Failed to reorder note:", err);
+      }
+    },
+    [selectedPath, loadNotes]
+  );
+
   return {
     notes,
     selectedPath,
@@ -93,5 +111,6 @@ export function useFiles() {
     onPathChanged,
     createNote,
     deleteNote,
+    reorderNote,
   };
 }

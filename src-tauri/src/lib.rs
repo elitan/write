@@ -255,6 +255,90 @@ fn reveal_in_finder(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn reorder_note(path: String, new_index: usize) -> Result<String, String> {
+    let notes_dir = get_notes_dir();
+
+    let mut entries: Vec<(PathBuf, u64, String)> = fs::read_dir(&notes_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let p = entry.path();
+            if p.extension()?.to_str()? != "md" {
+                return None;
+            }
+            let name = p.file_stem()?.to_string_lossy().to_string();
+            let num = parse_file_number(&name)?;
+            Some((p, num, name))
+        })
+        .collect();
+
+    entries.sort_by(|a, b| b.1.cmp(&a.1));
+
+    let source_path = PathBuf::from(&path);
+    let source_idx = entries
+        .iter()
+        .position(|(p, _, _)| p == &source_path)
+        .ok_or("Note not found")?;
+
+    if source_idx == new_index || entries.len() <= 1 {
+        return Ok(path);
+    }
+
+    let source_name = &entries[source_idx].2;
+    let slug = source_name.splitn(2, '-').nth(1).unwrap_or("untitled");
+
+    let adjusted_index = if new_index > source_idx {
+        new_index.min(entries.len() - 1)
+    } else {
+        new_index
+    };
+
+    let new_number = if adjusted_index == 0 {
+        entries.first().map(|(_, n, _)| n + 1).unwrap_or(1)
+    } else if adjusted_index >= entries.len() {
+        1
+    } else {
+        let above_idx = if adjusted_index <= source_idx {
+            adjusted_index.saturating_sub(1)
+        } else {
+            adjusted_index
+        };
+        let below_idx = if adjusted_index <= source_idx {
+            adjusted_index
+        } else {
+            adjusted_index
+        };
+
+        let above = entries.get(above_idx).map(|(_, n, _)| *n).unwrap_or(u64::MAX);
+        let below = entries.get(below_idx).map(|(_, n, _)| *n).unwrap_or(0);
+
+        if above > below + 1 {
+            below + 1
+        } else {
+            let max_num = entries.iter().map(|(_, n, _)| *n).max().unwrap_or(0);
+            for (i, (p, _, name)) in entries.iter().enumerate() {
+                if i == source_idx {
+                    continue;
+                }
+                let item_slug = name.splitn(2, '-').nth(1).unwrap_or("untitled");
+                let new_num = max_num + 1 + (entries.len() - 1 - i) as u64;
+                let new_p = notes_dir.join(format!("{}-{}.md", new_num, item_slug));
+                if p != &new_p {
+                    let _ = fs::rename(p, &new_p);
+                }
+            }
+            let target_num = max_num + 1 + (entries.len() - 1 - adjusted_index) as u64;
+            target_num
+        }
+    };
+
+    let new_path = notes_dir.join(format!("{}-{}.md", new_number, slug));
+    fs::rename(&source_path, &new_path).map_err(|e| e.to_string())?;
+
+    Ok(new_path.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -317,7 +401,8 @@ pub fn run() {
             create_note,
             delete_note,
             rename_note,
-            reveal_in_finder
+            reveal_in_finder,
+            reorder_note
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
