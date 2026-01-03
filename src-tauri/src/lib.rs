@@ -8,6 +8,92 @@ fn get_notes_dir() -> PathBuf {
     home.join("Notes")
 }
 
+fn slugify(text: &str) -> String {
+    let slug: String = text
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect();
+    let mut result = String::new();
+    let mut prev_dash = false;
+    for c in slug.chars() {
+        if c == '-' {
+            if !prev_dash && !result.is_empty() {
+                result.push(c);
+            }
+            prev_dash = true;
+        } else {
+            result.push(c);
+            prev_dash = false;
+        }
+    }
+    result.trim_end_matches('-').to_string()
+}
+
+fn parse_file_number(name: &str) -> Option<u64> {
+    let dash_pos = name.find('-')?;
+    name[..dash_pos].parse().ok()
+}
+
+fn get_next_number(notes_dir: &std::path::Path) -> u64 {
+    let max = fs::read_dir(notes_dir)
+        .ok()
+        .map(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .filter_map(|e| {
+                    let name = e.path().file_stem()?.to_string_lossy().to_string();
+                    parse_file_number(&name)
+                })
+                .max()
+                .unwrap_or(0)
+        })
+        .unwrap_or(0);
+    max + 1
+}
+
+fn is_old_timestamp_format(name: &str) -> bool {
+    name.len() >= 10 && name.chars().all(|c| c.is_ascii_digit())
+}
+
+fn migrate_old_notes(notes_dir: &std::path::Path) {
+    let Ok(entries) = fs::read_dir(notes_dir) else {
+        return;
+    };
+
+    let mut old_files: Vec<_> = entries
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let path = e.path();
+            path.extension().is_some_and(|ext| ext == "md")
+                && path
+                    .file_stem()
+                    .is_some_and(|s| is_old_timestamp_format(&s.to_string_lossy()))
+        })
+        .collect();
+
+    old_files.sort_by_key(|e| {
+        e.path()
+            .file_stem()
+            .and_then(|s| s.to_string_lossy().parse::<u64>().ok())
+            .unwrap_or(0)
+    });
+
+    for entry in old_files {
+        let path = entry.path();
+        let number = get_next_number(notes_dir);
+        let content = fs::read_to_string(&path).unwrap_or_default();
+        let title = parse_title(&content);
+        let slug = if title == "Untitled" || title.is_empty() {
+            "untitled".to_string()
+        } else {
+            slugify(&title)
+        };
+        let new_path = notes_dir.join(format!("{}-{}.md", number, slug));
+        let _ = fs::rename(&path, &new_path);
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct NoteEntry {
     pub name: String,
@@ -40,6 +126,8 @@ fn list_notes() -> Result<Vec<NoteEntry>, String> {
         return Ok(vec![]);
     }
 
+    migrate_old_notes(&notes_dir);
+
     let mut entries: Vec<NoteEntry> = fs::read_dir(&notes_dir)
         .map_err(|e| e.to_string())?
         .filter_map(|entry| {
@@ -68,7 +156,16 @@ fn list_notes() -> Result<Vec<NoteEntry>, String> {
         })
         .collect();
 
-    entries.sort_by(|a, b| b.modified.cmp(&a.modified));
+    entries.sort_by(|a, b| {
+        let num_a = parse_file_number(&a.name);
+        let num_b = parse_file_number(&b.name);
+        match (num_a, num_b) {
+            (Some(a), Some(b)) => b.cmp(&a),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => b.modified.cmp(&a.modified),
+        }
+    });
     Ok(entries)
 }
 
@@ -78,8 +175,42 @@ fn read_note(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn write_note(path: String, content: String) -> Result<(), String> {
-    fs::write(&path, content).map_err(|e| e.to_string())
+fn write_note(path: String, content: String) -> Result<String, String> {
+    fs::write(&path, &content).map_err(|e| e.to_string())?;
+
+    let old_path = PathBuf::from(&path);
+    let parent = old_path.parent().ok_or("Invalid path")?;
+    let old_name = old_path
+        .file_stem()
+        .ok_or("Invalid filename")?
+        .to_string_lossy()
+        .to_string();
+
+    let number = parse_file_number(&old_name);
+    if number.is_none() {
+        return Ok(path);
+    }
+    let number = number.unwrap();
+
+    let title = parse_title(&content);
+    let slug = if title == "Untitled" || title.is_empty() {
+        "untitled".to_string()
+    } else {
+        slugify(&title)
+    };
+
+    let new_name = format!("{}-{}", number, slug);
+    if new_name == old_name {
+        return Ok(path);
+    }
+
+    let new_path = parent.join(format!("{}.md", new_name));
+    if new_path.exists() && new_path != old_path {
+        return Ok(path);
+    }
+
+    fs::rename(&old_path, &new_path).map_err(|e| e.to_string())?;
+    Ok(new_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -89,12 +220,8 @@ fn create_note() -> Result<String, String> {
         fs::create_dir_all(&notes_dir).map_err(|e| e.to_string())?;
     }
 
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|e| e.to_string())?
-        .as_millis();
-
-    let path = notes_dir.join(format!("{}.md", timestamp));
+    let number = get_next_number(&notes_dir);
+    let path = notes_dir.join(format!("{}-untitled.md", number));
 
     fs::write(&path, "\n").map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())

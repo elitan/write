@@ -50,6 +50,10 @@ export function useFiles() {
     loadNotes();
   }, [loadNotes]);
 
+  const onPathChanged = useCallback((newPath: string) => {
+    setSelectedPath(newPath);
+  }, []);
+
   const createNote = useCallback(async () => {
     try {
       const path = await invoke<string>("create_note");
@@ -86,6 +90,7 @@ export function useFiles() {
     selectNote,
     deselectNote,
     onSaved,
+    onPathChanged,
     createNote,
     deleteNote,
   };

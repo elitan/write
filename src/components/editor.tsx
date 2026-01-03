@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { EditorState, Compartment } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { vim, Vim } from "@replit/codemirror-vim";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -12,6 +12,7 @@ interface EditorProps {
   isSaving: boolean;
   vimMode: boolean;
   onSaved: () => void;
+  onPathChanged: (newPath: string) => void;
   onClose: () => void;
 }
 
@@ -36,7 +37,7 @@ function buildContent(title: string, body: string): string {
   return `# ${title}\n${body}`;
 }
 
-export function Editor({ content, filePath, isSaving, vimMode, onSaved, onClose }: EditorProps) {
+export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathChanged, onClose }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -73,8 +74,11 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onClose 
       if (text === lastSavedRef.current || isSavingRef.current) return;
       isSavingRef.current = true;
       try {
-        await invoke("write_note", { path, content: text });
+        const newPath = await invoke<string>("write_note", { path, content: text });
         lastSavedRef.current = text;
+        if (newPath !== path) {
+          onPathChanged(newPath);
+        }
         onSaved();
       } catch (err) {
         console.error("Failed to save:", err);
@@ -82,7 +86,7 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onClose 
         isSavingRef.current = false;
       }
     },
-    [onSaved]
+    [onSaved, onPathChanged]
   );
 
   const debouncedSave = useCallback(
@@ -145,7 +149,7 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onClose 
         theme,
         markdown(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
         placeholder("Start writing..."),
         updateListener,
         EditorView.lineWrapping,

@@ -24,6 +24,7 @@ function App() {
     selectNote,
     deselectNote,
     onSaved,
+    onPathChanged,
     createNote,
     deleteNote,
   } = useFiles();
@@ -135,6 +136,7 @@ function App() {
             isSaving={isSaving}
             vimMode={settings.vimMode}
             onSaved={onSaved}
+            onPathChanged={onPathChanged}
             onClose={handleCloseEditor}
           />
         ) : (
