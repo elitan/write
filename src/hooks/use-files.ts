@@ -11,6 +11,7 @@ export interface NoteEntry {
 export function useFiles() {
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, _setIsSaving] = useState(false);
@@ -33,6 +34,8 @@ export function useFiles() {
 
   const selectNote = useCallback(async (path: string) => {
     try {
+      const noteId = `${Date.now()}`;
+      setSelectedNoteId(noteId);
       const text = await invoke<string>("read_note", { path });
       setSelectedPath(path);
       setContent(text);
@@ -46,23 +49,56 @@ export function useFiles() {
     setContent("");
   }, []);
 
-  const onSaved = useCallback(() => {
-    loadNotes();
-  }, [loadNotes]);
+  const onSaved = useCallback(() => {}, []);
 
-  const onPathChanged = useCallback((newPath: string) => {
+  const onPathChanged = useCallback((oldPath: string, newPath: string) => {
     setSelectedPath(newPath);
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.path === oldPath
+          ? { ...n, path: newPath, name: newPath.split("/").pop()! }
+          : n
+      )
+    );
+  }, []);
+
+  const updateNoteTitle = useCallback((path: string, title: string) => {
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.path === path ? { ...n, title: title || "New Page" } : n
+      )
+    );
   }, []);
 
   const createNote = useCallback(async () => {
+    const noteId = `${Date.now()}`;
+    const tempPath = `temp-${noteId}`;
+    const tempNote: NoteEntry = {
+      name: tempPath,
+      path: tempPath,
+      modified: Date.now(),
+      title: "New Page",
+    };
+    setNotes((prev) => [tempNote, ...prev]);
+    setSelectedNoteId(noteId);
+    setSelectedPath(tempPath);
+    setContent("\n");
+
     try {
       const path = await invoke<string>("create_note");
-      await loadNotes();
-      await selectNote(path);
+      setNotes((prev) =>
+        prev.map((n) =>
+          n.path === tempPath
+            ? { ...n, path, name: path.split("/").pop()! }
+            : n
+        )
+      );
+      setSelectedPath(path);
     } catch (err) {
       console.error("Failed to create note:", err);
+      setNotes((prev) => prev.filter((n) => n.path !== tempPath));
     }
-  }, [loadNotes, selectNote]);
+  }, []);
 
   const deleteNote = useCallback(
     async (path: string) => {
@@ -101,6 +137,7 @@ export function useFiles() {
   return {
     notes,
     selectedPath,
+    selectedNoteId,
     content,
     isLoading,
     isSaving,
@@ -109,6 +146,7 @@ export function useFiles() {
     deselectNote,
     onSaved,
     onPathChanged,
+    updateNoteTitle,
     createNote,
     deleteNote,
     reorderNote,

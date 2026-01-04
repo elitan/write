@@ -19,6 +19,7 @@ function App() {
   const {
     notes,
     selectedPath,
+    selectedNoteId,
     content,
     isLoading,
     isSaving,
@@ -27,6 +28,7 @@ function App() {
     deselectNote,
     onSaved,
     onPathChanged,
+    updateNoteTitle,
     createNote,
     deleteNote,
     reorderNote,
@@ -190,13 +192,14 @@ function App() {
       <main className="flex-1 relative">
         {selectedPath ? (
           <Editor
-            key={`${selectedPath}-${settings.vimMode}`}
+            key={`${selectedNoteId}-${settings.vimMode}`}
             content={content}
             filePath={selectedPath}
             isSaving={isSaving}
             vimMode={settings.vimMode}
             onSaved={onSaved}
             onPathChanged={onPathChanged}
+            onTitleChange={updateNoteTitle}
             onClose={handleCloseEditor}
           />
         ) : (

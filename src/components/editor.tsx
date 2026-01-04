@@ -12,7 +12,8 @@ interface EditorProps {
   isSaving: boolean;
   vimMode: boolean;
   onSaved: () => void;
-  onPathChanged: (newPath: string) => void;
+  onPathChanged: (oldPath: string, newPath: string) => void;
+  onTitleChange: (path: string, title: string) => void;
   onClose: () => void;
 }
 
@@ -37,7 +38,7 @@ function buildContent(title: string, body: string): string {
   return `# ${title}\n${body}`;
 }
 
-export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathChanged, onClose }: EditorProps) {
+export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathChanged, onTitleChange, onClose }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +50,11 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
   const parsed = useMemo(() => parseContent(content), [content]);
   const [title, setTitle] = useState(parsed.title);
   const titleRef = useRef(title);
+  const filePathRef = useRef(filePath);
+
+  useEffect(() => {
+    filePathRef.current = filePath;
+  }, [filePath]);
 
   useEffect(() => {
     const newParsed = parseContent(content);
@@ -61,7 +67,7 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
         viewRef.current?.focus();
       }
     }, 0);
-  }, [filePath]);
+  }, []);
 
   useEffect(() => {
     if (!vimMode) return;
@@ -77,7 +83,7 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
         const newPath = await invoke<string>("write_note", { path, content: text });
         lastSavedRef.current = text;
         if (newPath !== path) {
-          onPathChanged(newPath);
+          onPathChanged(path, newPath);
         }
         onSaved();
       } catch (err) {
@@ -96,7 +102,7 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
       }
       saveTimeoutRef.current = window.setTimeout(() => {
         saveNow(text, path);
-      }, 800);
+      }, 300);
     },
     [saveNow]
   );
@@ -104,9 +110,10 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
   function handleTitleChange(newTitle: string) {
     setTitle(newTitle);
     titleRef.current = newTitle;
+    onTitleChange(filePathRef.current, newTitle);
     const body = viewRef.current?.state.doc.toString() ?? parsed.body;
     const fullContent = buildContent(newTitle, body);
-    debouncedSave(fullContent, filePath);
+    debouncedSave(fullContent, filePathRef.current);
   }
 
   function handleTitleKeyDown(e: React.KeyboardEvent) {
@@ -132,13 +139,11 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
       },
     });
 
-    const currentPath = filePath;
-
     const updateListener = EditorView.updateListener.of((update) => {
       if (update.docChanged) {
         const body = update.state.doc.toString();
         const fullContent = buildContent(titleRef.current, body);
-        debouncedSave(fullContent, currentPath);
+        debouncedSave(fullContent, filePathRef.current);
       }
     });
 
@@ -171,11 +176,11 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
       const body = view.state.doc.toString();
       const fullContent = buildContent(titleRef.current, body);
       if (fullContent !== lastSavedRef.current) {
-        invoke("write_note", { path: currentPath, content: fullContent });
+        invoke("write_note", { path: filePathRef.current, content: fullContent });
       }
       view.destroy();
     };
-  }, [filePath, content, vimMode]);
+  }, [content, vimMode]);
 
   return (
     <div className="flex flex-col h-full">
