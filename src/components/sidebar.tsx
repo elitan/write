@@ -1,5 +1,6 @@
 import { FileText, Trash2, ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
+import { debugLog } from "./debug-panel";
 import {
   DndContext,
   closestCenter,
@@ -145,17 +146,48 @@ export function Sidebar({
     if (!isFocused) return;
 
     function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement;
+
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        debugLog("sidebar:skip", { reason: "input focused", target: target.tagName });
+        return;
+      }
+
+      debugLog("sidebar:keydown", {
+        key: e.key,
+        target: target.tagName,
+        isFocused,
+        focusedIndex,
+        notesCount: notes.length,
+        selectedPath,
+        notePaths: notes.map(n => n.path.split('/').pop()),
+      });
+
       if (e.key === "ArrowDown" || e.key === "j") {
         e.preventDefault();
         e.stopPropagation();
-        setFocusedIndex((i) => Math.min(i + 1, notes.length - 1));
+        const newIndex = Math.min(focusedIndex + 1, notes.length - 1);
+        debugLog("sidebar:nav", { action: "down", from: focusedIndex, to: newIndex });
+        setFocusedIndex(newIndex);
       } else if (e.key === "ArrowUp" || e.key === "k") {
         e.preventDefault();
         e.stopPropagation();
-        setFocusedIndex((i) => Math.max(i - 1, 0));
+        const newIndex = Math.max(focusedIndex - 1, 0);
+        debugLog("sidebar:nav", { action: "up", from: focusedIndex, to: newIndex });
+        setFocusedIndex(newIndex);
       } else if (e.key === "Enter" || e.key === "l") {
         e.preventDefault();
         e.stopPropagation();
+        debugLog("sidebar:select", {
+          focusedIndex,
+          selectingNote: notes[focusedIndex]?.path,
+          currentSelectedPath: selectedPath,
+          allNotes: notes.map(n => n.path.split('/').pop()),
+        });
         if (notes[focusedIndex]) {
           onSelect(notes[focusedIndex].path);
           onFocusChange(false);
@@ -163,6 +195,7 @@ export function Sidebar({
       } else if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
+        debugLog("sidebar:escape", {});
         onFocusChange(false);
       }
     }

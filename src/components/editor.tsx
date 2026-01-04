@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState, useMemo } from "react";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { debugLog } from "./debug-panel";
 import { EditorState, Compartment } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -9,6 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 interface EditorProps {
   content: string;
   filePath: string;
+  isCreating: boolean;
   isSaving: boolean;
   vimMode: boolean;
   onSaved: () => void;
@@ -38,7 +40,7 @@ function buildContent(title: string, body: string): string {
   return `# ${title}\n${body}`;
 }
 
-export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathChanged, onTitleChange, onClose }: EditorProps) {
+export function Editor({ content, filePath, isCreating, isSaving, vimMode, onSaved, onPathChanged, onTitleChange, onClose }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -49,37 +51,24 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
 
   const parsed = useMemo(() => parseContent(content), [content]);
   const [title, setTitle] = useState(parsed.title);
-  const titleRef = useRef(title);
   const filePathRef = useRef(filePath);
+  const isCreatingRef = useRef(isCreating);
+
+  const titleStateRef = useRef(title);
+  useEffect(() => {
+    titleStateRef.current = title;
+  }, [title]);
 
   useEffect(() => {
     filePathRef.current = filePath;
   }, [filePath]);
-
-  useEffect(() => {
-    const newParsed = parseContent(content);
-    setTitle(newParsed.title);
-    titleRef.current = newParsed.title;
-    setTimeout(() => {
-      if (!newParsed.title) {
-        titleInputRef.current?.focus();
-      } else {
-        viewRef.current?.focus();
-      }
-    }, 0);
-  }, []);
-
-  useEffect(() => {
-    if (!vimMode) return;
-    Vim.defineEx("q", "q", onClose);
-    Vim.defineEx("wq", "wq", onClose);
-  }, [vimMode, onClose]);
 
   const saveNow = useCallback(
     async (text: string, path: string) => {
       if (text === lastSavedRef.current || isSavingRef.current) return;
       isSavingRef.current = true;
       try {
+        debugLog("editor:save", { path, contentLength: text.length });
         const newPath = await invoke<string>("write_note", { path, content: text });
         lastSavedRef.current = text;
         if (newPath !== path) {
@@ -107,11 +96,56 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
     [saveNow]
   );
 
+  useEffect(() => {
+    const wasCreating = isCreatingRef.current;
+    debugLog("editor:isCreatingEffect", {
+      wasCreating,
+      isCreating,
+      filePath,
+      hasView: !!viewRef.current,
+      titleState: titleStateRef.current,
+    });
+    isCreatingRef.current = isCreating;
+    if (wasCreating && !isCreating && viewRef.current) {
+      const body = viewRef.current.state.doc.toString();
+      const fullContent = buildContent(titleStateRef.current, body);
+      debugLog("editor:creationComplete", { filePath, title: titleStateRef.current, bodyLength: body.length });
+      debouncedSave(fullContent, filePath);
+    }
+  }, [isCreating, filePath, debouncedSave]);
+
+  useEffect(() => {
+    const newParsed = parseContent(content);
+    debugLog("editor:syncTitle", {
+      filePath,
+      contentLength: content.length,
+      parsedTitle: newParsed.title,
+    });
+    setTitle(newParsed.title);
+    setTimeout(() => {
+      if (!newParsed.title) {
+        titleInputRef.current?.focus();
+      } else {
+        viewRef.current?.focus();
+      }
+    }, 0);
+  }, [content]);
+
+  useEffect(() => {
+    if (!vimMode) return;
+    Vim.defineEx("q", "q", onClose);
+    Vim.defineEx("wq", "wq", onClose);
+  }, [vimMode, onClose]);
+
   function handleTitleChange(newTitle: string) {
+    debugLog("editor:titleChange", { newTitle, isCreating: isCreatingRef.current, filePath: filePathRef.current });
     setTitle(newTitle);
-    titleRef.current = newTitle;
     onTitleChange(filePathRef.current, newTitle);
-    const body = viewRef.current?.state.doc.toString() ?? parsed.body;
+    if (isCreatingRef.current) {
+      debugLog("editor:titleChange:skipSave", { reason: "isCreating" });
+      return;
+    }
+    const body = viewRef.current?.state.doc.toString() ?? "";
     const fullContent = buildContent(newTitle, body);
     debouncedSave(fullContent, filePathRef.current);
   }
@@ -140,9 +174,9 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
     });
 
     const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
+      if (update.docChanged && !isCreatingRef.current) {
         const body = update.state.doc.toString();
-        const fullContent = buildContent(titleRef.current, body);
+        const fullContent = buildContent(titleStateRef.current, body);
         debouncedSave(fullContent, filePathRef.current);
       }
     });
@@ -170,13 +204,25 @@ export function Editor({ content, filePath, isSaving, vimMode, onSaved, onPathCh
     lastSavedRef.current = content;
 
     return () => {
+      debugLog("editor:cleanup", {
+        isCreating: isCreatingRef.current,
+        filePath: filePathRef.current,
+        title: titleStateRef.current,
+      });
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
-      const body = view.state.doc.toString();
-      const fullContent = buildContent(titleRef.current, body);
-      if (fullContent !== lastSavedRef.current) {
-        invoke("write_note", { path: filePathRef.current, content: fullContent });
+      if (!isCreatingRef.current) {
+        const body = view.state.doc.toString();
+        const fullContent = buildContent(titleStateRef.current, body);
+        debugLog("editor:cleanup:save", {
+          willSave: fullContent !== lastSavedRef.current,
+          contentLength: fullContent.length,
+          lastSavedLength: lastSavedRef.current.length,
+        });
+        if (fullContent !== lastSavedRef.current) {
+          invoke("write_note", { path: filePathRef.current, content: fullContent });
+        }
       }
       view.destroy();
     };

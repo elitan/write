@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { debugLog } from "../components/debug-panel";
 
 export interface NoteEntry {
   name: string;
@@ -33,16 +34,21 @@ export function useFiles() {
   }, [loadNotes]);
 
   const selectNote = useCallback(async (path: string) => {
+    debugLog("useFiles:selectNote:start", { requestedPath: path, currentSelectedPath: selectedPath });
     try {
+      debugLog("useFiles:selectNote:reading", { path });
+      const text = await invoke<string>("read_note", { path });
+      debugLog("useFiles:selectNote:read", { path, contentLength: text.length });
       const noteId = `${Date.now()}`;
       setSelectedNoteId(noteId);
-      const text = await invoke<string>("read_note", { path });
       setSelectedPath(path);
       setContent(text);
+      debugLog("useFiles:selectNote:done", { newSelectedPath: path });
     } catch (err) {
+      debugLog("useFiles:selectNote:error", { path, error: String(err) });
       console.error("Failed to read note:", err);
     }
-  }, []);
+  }, [selectedPath]);
 
   const deselectNote = useCallback(() => {
     setSelectedPath(null);
@@ -134,6 +140,8 @@ export function useFiles() {
     [selectedPath, loadNotes]
   );
 
+  const isCreating = selectedPath?.startsWith("temp-") ?? false;
+
   return {
     notes,
     selectedPath,
@@ -141,6 +149,7 @@ export function useFiles() {
     content,
     isLoading,
     isSaving,
+    isCreating,
     loadNotes,
     selectNote,
     deselectNote,

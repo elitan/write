@@ -10,6 +10,7 @@ import { UpdatePrompt } from "./components/update-prompt";
 import { SettingsPopover } from "./components/settings-popover";
 import { WorkspaceSwitcher } from "./components/workspace-switcher";
 import { Modal } from "./components/modal";
+import { DebugPanel, debugLog } from "./components/debug-panel";
 import { useFiles, type NoteEntry } from "./hooks/use-files";
 import { useUpdater } from "./hooks/use-updater";
 import { useSettings } from "./hooks/use-settings";
@@ -23,6 +24,7 @@ function App() {
     content,
     isLoading,
     isSaving,
+    isCreating,
     loadNotes,
     selectNote,
     deselectNote,
@@ -50,6 +52,7 @@ function App() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWorkspaceSwitcherOpen, setIsWorkspaceSwitcherOpen] = useState(false);
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<{ path: string; title: string } | null>(null);
   const [sidebarFocused, setSidebarFocused] = useState(false);
 
@@ -80,28 +83,49 @@ function App() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement;
+      debugLog("app:keydown", {
+        key: e.key,
+        code: e.code,
+        meta: e.metaKey,
+        shift: e.shiftKey,
+        ctrl: e.ctrlKey,
+        target: target.tagName,
+        sidebarFocused,
+      });
+
       if (e.metaKey && e.key === "k") {
         e.preventDefault();
+        debugLog("app:action", { action: "openCommandPalette" });
         setIsCommandPaletteOpen(true);
       } else if (e.metaKey && e.key === "n") {
         e.preventDefault();
+        debugLog("app:action", { action: "createNote" });
         createNote();
       } else if (e.metaKey && e.key === ",") {
         e.preventDefault();
+        debugLog("app:action", { action: "openSettings" });
         setIsSettingsOpen(true);
       } else if (e.metaKey && e.key === "Backspace" && selectedPath) {
         e.preventDefault();
+        debugLog("app:action", { action: "deleteNote", selectedPath });
         handleDeleteRequest(selectedPath);
-      } else if (e.metaKey && e.shiftKey && e.key === "e") {
+      } else if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "e") {
         e.preventDefault();
+        debugLog("app:action", { action: "focusSidebar", before: sidebarFocused });
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
         setSidebarFocused(true);
       } else if (e.ctrlKey && e.key === "Tab") {
         e.preventDefault();
+        debugLog("app:action", { action: "openWorkspaceSwitcher" });
         setIsWorkspaceSwitcherOpen(true);
       } else if (e.metaKey && /^[1-9]$/.test(e.key)) {
         const workspace = workspaces.find((w) => w.shortcut === e.key);
         if (workspace && workspace.id !== activeWorkspaceId) {
           e.preventDefault();
+          debugLog("app:action", { action: "switchWorkspace", workspace: workspace.name });
           switchWorkspace(workspace.id);
         }
       }
@@ -109,7 +133,7 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [createNote, selectedPath, handleDeleteRequest, workspaces, activeWorkspaceId, switchWorkspace]);
+  }, [createNote, selectedPath, handleDeleteRequest, workspaces, activeWorkspaceId, switchWorkspace, sidebarFocused]);
 
   useEffect(() => {
     const unlisten = listen("tauri://focus", () => {
@@ -195,6 +219,7 @@ function App() {
             key={`${selectedNoteId}-${settings.vimMode}`}
             content={content}
             filePath={selectedPath}
+            isCreating={isCreating}
             isSaving={isSaving}
             vimMode={settings.vimMode}
             onSaved={onSaved}
@@ -214,6 +239,7 @@ function App() {
         onSelect={selectNote}
         onCheckForUpdates={checkForUpdates}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onToggleDebug={() => setIsDebugOpen((v) => !v)}
         selectedPath={selectedPath}
         onDeleteCurrent={() => selectedPath && handleDeleteRequest(selectedPath)}
       />
@@ -279,6 +305,19 @@ function App() {
           </button>
         </div>
       </Modal>
+
+      <DebugPanel
+        isOpen={isDebugOpen}
+        onClose={() => setIsDebugOpen(false)}
+        state={{
+          sidebarFocused,
+          selectedPath,
+          notesCount: notes.length,
+          isCommandPaletteOpen,
+          isSettingsOpen,
+          isWorkspaceSwitcherOpen,
+        }}
+      />
     </div>
   );
 }

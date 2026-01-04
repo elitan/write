@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FileText, RefreshCw, Settings, Trash2, FolderOpen } from "lucide-react";
+import { Search, FileText, RefreshCw, Settings, Trash2, FolderOpen, Bug } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import Fuse from "fuse.js";
 import type { NoteEntry } from "../hooks/use-files";
@@ -8,7 +8,7 @@ type CommandItem = {
   type: "command";
   id: string;
   title: string;
-  icon: "settings" | "update" | "delete" | "finder";
+  icon: "settings" | "update" | "delete" | "finder" | "debug";
   action: () => void;
 };
 
@@ -27,6 +27,7 @@ interface CommandPaletteProps {
   onSelect: (path: string) => void;
   onCheckForUpdates: () => void;
   onOpenSettings: () => void;
+  onToggleDebug: () => void;
   selectedPath: string | null;
   onDeleteCurrent: () => void;
 }
@@ -38,6 +39,7 @@ export function CommandPalette({
   onSelect,
   onCheckForUpdates,
   onOpenSettings,
+  onToggleDebug,
   selectedPath,
   onDeleteCurrent,
 }: CommandPaletteProps) {
@@ -48,6 +50,7 @@ export function CommandPalette({
   const commands: CommandItem[] = [
     { type: "command", id: "settings", title: "Settings", icon: "settings", action: onOpenSettings },
     { type: "command", id: "update", title: "Check for updates", icon: "update", action: onCheckForUpdates },
+    { type: "command", id: "debug", title: "Toggle Debug Panel", icon: "debug", action: onToggleDebug },
     ...(selectedPath
       ? [
           { type: "command" as const, id: "finder", title: "Reveal in Finder", icon: "finder" as const, action: () => invoke("reveal_in_finder", { path: selectedPath }) },
@@ -139,6 +142,9 @@ export function CommandPalette({
     }
     if (item.icon === "finder") {
       return <FolderOpen size={16} className="shrink-0 text-[var(--color-muted)]" />;
+    }
+    if (item.icon === "debug") {
+      return <Bug size={16} className="shrink-0 text-[var(--color-muted)]" />;
     }
     return <RefreshCw size={16} className="shrink-0 text-[var(--color-muted)]" />;
   }
