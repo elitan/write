@@ -17,7 +17,7 @@ interface EditorProps {
   onClose: () => void;
 }
 
-function parseContent(content: string): { title: string; body: string } {
+export function parseContent(content: string): { title: string; body: string } {
   const lines = content.split("\n");
   const titleLineIndex = lines.findIndex((line) => line.startsWith("# "));
 
@@ -34,7 +34,7 @@ function parseContent(content: string): { title: string; body: string } {
   return { title, body };
 }
 
-function buildContent(title: string, body: string): string {
+export function buildContent(title: string, body: string): string {
   return `# ${title}\n${body}`;
 }
 

@@ -606,3 +606,87 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_title_with_h1() {
+        assert_eq!(parse_title("# Hello World\nBody text"), "Hello World");
+        assert_eq!(parse_title("# My Note"), "My Note");
+    }
+
+    #[test]
+    fn test_parse_title_with_content_before_h1() {
+        assert_eq!(parse_title("Some intro\n# Title Here\nBody"), "Title Here");
+    }
+
+    #[test]
+    fn test_parse_title_no_h1() {
+        assert_eq!(parse_title("No heading here"), "Untitled");
+        assert_eq!(parse_title(""), "Untitled");
+    }
+
+    #[test]
+    fn test_parse_title_h2_not_matched() {
+        assert_eq!(parse_title("## Not a title"), "Untitled");
+    }
+
+    #[test]
+    fn test_slugify_basic() {
+        assert_eq!(slugify("Hello World"), "hello-world");
+        assert_eq!(slugify("My Note"), "my-note");
+    }
+
+    #[test]
+    fn test_slugify_special_chars() {
+        assert_eq!(slugify("Hello! World?"), "hello-world");
+        assert_eq!(slugify("Test@#$%Name"), "test-name");
+    }
+
+    #[test]
+    fn test_slugify_consecutive_dashes() {
+        assert_eq!(slugify("Hello   World"), "hello-world");
+        assert_eq!(slugify("A--B--C"), "a-b-c");
+    }
+
+    #[test]
+    fn test_slugify_leading_trailing() {
+        assert_eq!(slugify("  Hello  "), "hello");
+        assert_eq!(slugify("---test---"), "test");
+    }
+
+    #[test]
+    fn test_slugify_unicode() {
+        assert_eq!(slugify("Café"), "café");
+        assert_eq!(slugify("日本語"), "日本語");
+    }
+
+    #[test]
+    fn test_parse_file_number_valid() {
+        assert_eq!(parse_file_number("1-hello"), Some(1));
+        assert_eq!(parse_file_number("42-my-note"), Some(42));
+        assert_eq!(parse_file_number("100-test"), Some(100));
+    }
+
+    #[test]
+    fn test_parse_file_number_invalid() {
+        assert_eq!(parse_file_number("hello"), None);
+        assert_eq!(parse_file_number("abc-123"), None);
+        assert_eq!(parse_file_number("-test"), None);
+    }
+
+    #[test]
+    fn test_is_old_timestamp_format_valid() {
+        assert!(is_old_timestamp_format("1704067200000"));
+        assert!(is_old_timestamp_format("1234567890"));
+    }
+
+    #[test]
+    fn test_is_old_timestamp_format_invalid() {
+        assert!(!is_old_timestamp_format("123"));
+        assert!(!is_old_timestamp_format("abc1234567"));
+        assert!(!is_old_timestamp_format("12-hello"));
+    }
+}
