@@ -20,15 +20,12 @@ function App() {
   const {
     notes,
     selectedPath,
-    selectedNoteId,
     content,
     isLoading,
-    isSaving,
     isCreating,
     loadNotes,
     selectNote,
     deselectNote,
-    onSaved,
     onPathChanged,
     updateNoteTitle,
     createNote,
@@ -49,10 +46,8 @@ function App() {
     renameWorkspace,
   } = useWorkspaces();
 
-  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isWorkspaceSwitcherOpen, setIsWorkspaceSwitcherOpen] = useState(false);
-  const [isDebugOpen, setIsDebugOpen] = useState(false);
+  type ModalType = "palette" | "settings" | "workspace" | "debug" | null;
+  const [openModal, setOpenModal] = useState<ModalType>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ path: string; title: string } | null>(null);
   const [sidebarFocused, setSidebarFocused] = useState(false);
 
@@ -97,7 +92,7 @@ function App() {
       if (e.metaKey && e.key === "k") {
         e.preventDefault();
         debugLog("app:action", { action: "openCommandPalette" });
-        setIsCommandPaletteOpen(true);
+        setOpenModal("palette");
       } else if (e.metaKey && e.key === "n") {
         e.preventDefault();
         debugLog("app:action", { action: "createNote" });
@@ -105,7 +100,7 @@ function App() {
       } else if (e.metaKey && e.key === ",") {
         e.preventDefault();
         debugLog("app:action", { action: "openSettings" });
-        setIsSettingsOpen(true);
+        setOpenModal("settings");
       } else if (e.metaKey && e.key === "Backspace" && selectedPath) {
         e.preventDefault();
         debugLog("app:action", { action: "deleteNote", selectedPath });
@@ -120,7 +115,7 @@ function App() {
       } else if (e.ctrlKey && e.key === "Tab") {
         e.preventDefault();
         debugLog("app:action", { action: "openWorkspaceSwitcher" });
-        setIsWorkspaceSwitcherOpen(true);
+        setOpenModal("workspace");
       } else if (e.metaKey && /^[1-9]$/.test(e.key)) {
         const workspace = workspaces.find((w) => w.shortcut === e.key);
         if (workspace && workspace.id !== activeWorkspaceId) {
@@ -210,19 +205,17 @@ function App() {
         isFocused={sidebarFocused}
         onFocusChange={setSidebarFocused}
         activeWorkspace={activeWorkspace}
-        onOpenWorkspaceSwitcher={() => setIsWorkspaceSwitcherOpen(true)}
+        onOpenWorkspaceSwitcher={() => setOpenModal("workspace")}
       />
 
       <main className="flex-1 relative">
         {selectedPath ? (
           <Editor
-            key={`${selectedNoteId}-${settings.vimMode}`}
+            key={`${selectedPath}-${settings.vimMode}`}
             content={content}
             filePath={selectedPath}
             isCreating={isCreating}
-            isSaving={isSaving}
             vimMode={settings.vimMode}
-            onSaved={onSaved}
             onPathChanged={onPathChanged}
             onTitleChange={updateNoteTitle}
             onClose={handleCloseEditor}
@@ -234,12 +227,12 @@ function App() {
 
       <CommandPalette
         notes={notes}
-        isOpen={isCommandPaletteOpen}
-        onClose={() => setIsCommandPaletteOpen(false)}
+        isOpen={openModal === "palette"}
+        onClose={() => setOpenModal(null)}
         onSelect={selectNote}
         onCheckForUpdates={checkForUpdates}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onToggleDebug={() => setIsDebugOpen((v) => !v)}
+        onOpenSettings={() => setOpenModal("settings")}
+        onToggleDebug={() => setOpenModal((m) => (m === "debug" ? null : "debug"))}
         selectedPath={selectedPath}
         onDeleteCurrent={() => selectedPath && handleDeleteRequest(selectedPath)}
       />
@@ -252,8 +245,8 @@ function App() {
       )}
 
       <SettingsPopover
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        isOpen={openModal === "settings"}
+        onClose={() => setOpenModal(null)}
         vimMode={settings.vimMode}
         onVimModeChange={(v) => setSetting("vimMode", v)}
       />
@@ -261,11 +254,11 @@ function App() {
       <WorkspaceSwitcher
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
-        isOpen={isWorkspaceSwitcherOpen}
-        onClose={() => setIsWorkspaceSwitcherOpen(false)}
+        isOpen={openModal === "workspace"}
+        onClose={() => setOpenModal(null)}
         onSelect={(id) => {
           switchWorkspace(id);
-          setIsWorkspaceSwitcherOpen(false);
+          setOpenModal(null);
         }}
         onCreate={(name) => {
           createWorkspace(name).then((w) => {
@@ -307,15 +300,13 @@ function App() {
       </Modal>
 
       <DebugPanel
-        isOpen={isDebugOpen}
-        onClose={() => setIsDebugOpen(false)}
+        isOpen={openModal === "debug"}
+        onClose={() => setOpenModal(null)}
         state={{
           sidebarFocused,
           selectedPath,
           notesCount: notes.length,
-          isCommandPaletteOpen,
-          isSettingsOpen,
-          isWorkspaceSwitcherOpen,
+          openModal,
         }}
       />
     </div>

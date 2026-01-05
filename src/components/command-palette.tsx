@@ -156,12 +156,12 @@ export function CommandPalette({
     >
       <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-        style={{ animation: "fadeIn 100ms ease" }}
+        style={{ animation: "modalFadeIn 100ms ease" }}
       />
       <div
         className="relative w-full max-w-[520px] bg-[var(--color-bg)] border border-[var(--color-border)] rounded-xl shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
-        style={{ animation: "slideIn 100ms ease" }}
+        style={{ animation: "paletteSlideIn 100ms ease" }}
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--color-border)]">
           <Search size={18} className="text-[var(--color-muted)]" />
@@ -210,16 +210,6 @@ export function CommandPalette({
         </div>
       </div>
 
-      <style>{`
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes slideIn {
-          from { opacity: 0; transform: scale(0.96) translateY(-10px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-      `}</style>
     </div>
   );
 }

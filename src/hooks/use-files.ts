@@ -12,10 +12,8 @@ export interface NoteEntry {
 export function useFiles() {
   const [notes, setNotes] = useState<NoteEntry[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [content, setContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, _setIsSaving] = useState(false);
 
   const loadNotes = useCallback(async () => {
     try {
@@ -39,8 +37,6 @@ export function useFiles() {
       debugLog("useFiles:selectNote:reading", { path });
       const text = await invoke<string>("read_note", { path });
       debugLog("useFiles:selectNote:read", { path, contentLength: text.length });
-      const noteId = `${Date.now()}`;
-      setSelectedNoteId(noteId);
       setSelectedPath(path);
       setContent(text);
       debugLog("useFiles:selectNote:done", { newSelectedPath: path });
@@ -54,8 +50,6 @@ export function useFiles() {
     setSelectedPath(null);
     setContent("");
   }, []);
-
-  const onSaved = useCallback(() => {}, []);
 
   const onPathChanged = useCallback((oldPath: string, newPath: string) => {
     setSelectedPath(newPath);
@@ -77,8 +71,7 @@ export function useFiles() {
   }, []);
 
   const createNote = useCallback(async () => {
-    const noteId = `${Date.now()}`;
-    const tempPath = `temp-${noteId}`;
+    const tempPath = `temp-${Date.now()}`;
     const tempNote: NoteEntry = {
       name: tempPath,
       path: tempPath,
@@ -86,7 +79,6 @@ export function useFiles() {
       title: "New Page",
     };
     setNotes((prev) => [tempNote, ...prev]);
-    setSelectedNoteId(noteId);
     setSelectedPath(tempPath);
     setContent("\n");
 
@@ -145,15 +137,12 @@ export function useFiles() {
   return {
     notes,
     selectedPath,
-    selectedNoteId,
     content,
     isLoading,
-    isSaving,
     isCreating,
     loadNotes,
     selectNote,
     deselectNote,
-    onSaved,
     onPathChanged,
     updateNoteTitle,
     createNote,

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::fs;
+use std::fs::{self, File};
+use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::menu::{AboutMetadata, MenuBuilder, SubmenuBuilder};
@@ -100,7 +101,7 @@ fn migrate_existing_notes() -> Result<WorkspaceConfig, String> {
 
 fn init_workspaces() -> WorkspaceConfig {
     let config_path = get_config_path();
-    if config_path.exists() {
+    let config = if config_path.exists() {
         load_config()
     } else {
         migrate_existing_notes().unwrap_or_else(|_| WorkspaceConfig {
@@ -111,7 +112,16 @@ fn init_workspaces() -> WorkspaceConfig {
             }],
             active_workspace_id: "Personal".to_string(),
         })
+    };
+
+    for workspace in &config.workspaces {
+        let notes_dir = get_workspace_dir(&workspace.id);
+        if notes_dir.exists() {
+            migrate_old_notes(&notes_dir);
+        }
     }
+
+    config
 }
 
 fn slugify(text: &str) -> String {
@@ -214,6 +224,18 @@ fn parse_title(content: &str) -> String {
         .find(|line| line.starts_with("# "))
         .map(|line| line.trim_start_matches("# ").to_string())
         .unwrap_or_else(|| "Untitled".to_string())
+}
+
+fn read_title_from_file(path: &std::path::Path) -> String {
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(_) => return "Untitled".to_string(),
+    };
+    let mut reader = BufReader::new(file);
+    let mut buf = [0u8; 200];
+    let n = reader.read(&mut buf).unwrap_or(0);
+    let content = String::from_utf8_lossy(&buf[..n]);
+    parse_title(&content)
 }
 
 #[tauri::command]
@@ -324,8 +346,6 @@ fn list_notes(state: tauri::State<AppState>) -> Result<Vec<NoteEntry>, String> {
         return Ok(vec![]);
     }
 
-    migrate_old_notes(&notes_dir);
-
     let mut entries: Vec<NoteEntry> = fs::read_dir(&notes_dir)
         .map_err(|e| e.to_string())?
         .filter_map(|entry| {
@@ -340,8 +360,7 @@ fn list_notes(state: tauri::State<AppState>) -> Result<Vec<NoteEntry>, String> {
                     .ok()?
                     .as_secs();
                 let name = path.file_stem()?.to_string_lossy().to_string();
-                let content = fs::read_to_string(&path).unwrap_or_default();
-                let title = parse_title(&content);
+                let title = read_title_from_file(&path);
                 Some(NoteEntry {
                     name,
                     path: path.to_string_lossy().to_string(),
@@ -462,7 +481,7 @@ fn reorder_note(state: tauri::State<AppState>, path: String, new_index: usize) -
     let notes_dir = get_workspace_dir(&config.active_workspace_id);
     drop(config);
 
-    let mut entries: Vec<(PathBuf, u64, String)> = fs::read_dir(&notes_dir)
+    let mut entries: Vec<(PathBuf, String)> = fs::read_dir(&notes_dir)
         .map_err(|e| e.to_string())?
         .filter_map(|entry| {
             let entry = entry.ok()?;
@@ -471,75 +490,42 @@ fn reorder_note(state: tauri::State<AppState>, path: String, new_index: usize) -
                 return None;
             }
             let name = p.file_stem()?.to_string_lossy().to_string();
-            let num = parse_file_number(&name)?;
-            Some((p, num, name))
+            parse_file_number(&name)?;
+            Some((p, name))
         })
         .collect();
 
-    entries.sort_by(|a, b| b.1.cmp(&a.1));
+    entries.sort_by(|a, b| {
+        let num_a = parse_file_number(&a.1).unwrap_or(0);
+        let num_b = parse_file_number(&b.1).unwrap_or(0);
+        num_b.cmp(&num_a)
+    });
 
     let source_path = PathBuf::from(&path);
-    let source_idx = entries
-        .iter()
-        .position(|(p, _, _)| p == &source_path)
-        .ok_or("Note not found")?;
+    let source_idx = entries.iter().position(|(p, _)| p == &source_path).ok_or("Note not found")?;
 
     if source_idx == new_index || entries.len() <= 1 {
         return Ok(path);
     }
 
-    let source_name = &entries[source_idx].2;
-    let slug = source_name.splitn(2, '-').nth(1).unwrap_or("untitled");
+    let item = entries.remove(source_idx);
+    let insert_idx = new_index.min(entries.len());
+    entries.insert(insert_idx, item);
 
-    let adjusted_index = if new_index > source_idx {
-        new_index.min(entries.len() - 1)
-    } else {
-        new_index
-    };
-
-    let new_number = if adjusted_index == 0 {
-        entries.first().map(|(_, n, _)| n + 1).unwrap_or(1)
-    } else if adjusted_index >= entries.len() {
-        1
-    } else {
-        let above_idx = if adjusted_index <= source_idx {
-            adjusted_index.saturating_sub(1)
-        } else {
-            adjusted_index
-        };
-        let below_idx = if adjusted_index <= source_idx {
-            adjusted_index
-        } else {
-            adjusted_index
-        };
-
-        let above = entries.get(above_idx).map(|(_, n, _)| *n).unwrap_or(u64::MAX);
-        let below = entries.get(below_idx).map(|(_, n, _)| *n).unwrap_or(0);
-
-        if above > below + 1 {
-            below + 1
-        } else {
-            let max_num = entries.iter().map(|(_, n, _)| *n).max().unwrap_or(0);
-            for (i, (p, _, name)) in entries.iter().enumerate() {
-                if i == source_idx {
-                    continue;
-                }
-                let item_slug = name.splitn(2, '-').nth(1).unwrap_or("untitled");
-                let new_num = max_num + 1 + (entries.len() - 1 - i) as u64;
-                let new_p = notes_dir.join(format!("{}-{}.md", new_num, item_slug));
-                if p != &new_p {
-                    let _ = fs::rename(p, &new_p);
-                }
+    let mut new_path_result = path.clone();
+    for (i, (old_path, name)) in entries.iter().enumerate() {
+        let slug = name.splitn(2, '-').nth(1).unwrap_or("untitled");
+        let new_num = (entries.len() - i) as u64;
+        let new_p = notes_dir.join(format!("{}-{}.md", new_num, slug));
+        if old_path != &new_p {
+            fs::rename(old_path, &new_p).map_err(|e| e.to_string())?;
+            if *old_path == source_path {
+                new_path_result = new_p.to_string_lossy().to_string();
             }
-            let target_num = max_num + 1 + (entries.len() - 1 - adjusted_index) as u64;
-            target_num
         }
-    };
+    }
 
-    let new_path = notes_dir.join(format!("{}-{}.md", new_number, slug));
-    fs::rename(&source_path, &new_path).map_err(|e| e.to_string())?;
-
-    Ok(new_path.to_string_lossy().to_string())
+    Ok(new_path_result)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

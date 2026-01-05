@@ -11,9 +11,7 @@ interface EditorProps {
   content: string;
   filePath: string;
   isCreating: boolean;
-  isSaving: boolean;
   vimMode: boolean;
-  onSaved: () => void;
   onPathChanged: (oldPath: string, newPath: string) => void;
   onTitleChange: (path: string, title: string) => void;
   onClose: () => void;
@@ -40,7 +38,7 @@ function buildContent(title: string, body: string): string {
   return `# ${title}\n${body}`;
 }
 
-export function Editor({ content, filePath, isCreating, isSaving, vimMode, onSaved, onPathChanged, onTitleChange, onClose }: EditorProps) {
+export function Editor({ content, filePath, isCreating, vimMode, onPathChanged, onTitleChange, onClose }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -74,14 +72,13 @@ export function Editor({ content, filePath, isCreating, isSaving, vimMode, onSav
         if (newPath !== path) {
           onPathChanged(path, newPath);
         }
-        onSaved();
       } catch (err) {
         console.error("Failed to save:", err);
       } finally {
         isSavingRef.current = false;
       }
     },
-    [onSaved, onPathChanged]
+    [onPathChanged]
   );
 
   const debouncedSave = useCallback(
@@ -246,11 +243,6 @@ export function Editor({ content, filePath, isCreating, isSaving, vimMode, onSav
           <div ref={containerRef} className="px-6 pb-6" />
         </div>
       </div>
-      {isSaving && (
-        <div className="absolute bottom-4 right-4 px-2 py-1 text-xs text-[var(--color-muted)] bg-[var(--color-sidebar)] rounded-[var(--radius-sm)] border border-[var(--color-border)]">
-          Saving...
-        </div>
-      )}
     </div>
   );
 }
