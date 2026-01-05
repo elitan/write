@@ -1,6 +1,6 @@
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Workspace } from "../hooks/use-workspaces";
+import type { Workspace } from "../stores/notes-store";
 
 interface WorkspaceSwitcherProps {
   workspaces: Workspace[];

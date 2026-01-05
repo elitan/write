@@ -11,27 +11,30 @@ import { SettingsPopover } from "./components/settings-popover";
 import { Sidebar } from "./components/sidebar";
 import { UpdatePrompt } from "./components/update-prompt";
 import { WorkspaceSwitcher } from "./components/workspace-switcher";
-import { type NoteEntry, useFiles } from "./hooks/use-files";
 import { useSettings } from "./hooks/use-settings";
 import { useUpdater } from "./hooks/use-updater";
-import { useWorkspaces } from "./hooks/use-workspaces";
+import { useNotesStore } from "./stores/notes-store";
 
 function App() {
-  const {
-    notes,
-    selectedPath,
-    content,
-    isLoading,
-    isCreating,
-    loadNotes,
-    selectNote,
-    deselectNote,
-    onPathChanged,
-    updateNoteTitle,
-    createNote,
-    deleteNote,
-    reorderNote,
-  } = useFiles();
+  const notes = useNotesStore((s) => s.notes);
+  const selectedPath = useNotesStore((s) => s.selectedPath);
+  const notesLoading = useNotesStore((s) => s.notesLoading);
+  const workspacesLoading = useNotesStore((s) => s.workspacesLoading);
+  const workspaces = useNotesStore((s) => s.workspaces);
+  const activeWorkspaceId = useNotesStore((s) => s.activeWorkspaceId);
+  const activeWorkspace = useNotesStore((s) => s.activeWorkspace);
+
+  const loadWorkspaces = useNotesStore((s) => s.loadWorkspaces);
+  const loadNotes = useNotesStore((s) => s.loadNotes);
+  const selectNote = useNotesStore((s) => s.selectNote);
+  const deselectNote = useNotesStore((s) => s.deselectNote);
+  const createNote = useNotesStore((s) => s.createNote);
+  const deleteNote = useNotesStore((s) => s.deleteNote);
+  const reorderNote = useNotesStore((s) => s.reorderNote);
+  const switchWorkspace = useNotesStore((s) => s.switchWorkspace);
+  const createWorkspace = useNotesStore((s) => s.createWorkspace);
+  const deleteWorkspace = useNotesStore((s) => s.deleteWorkspace);
+  const renameWorkspace = useNotesStore((s) => s.renameWorkspace);
 
   const {
     updateAvailable,
@@ -40,16 +43,6 @@ function App() {
     checkForUpdates,
   } = useUpdater();
   const { settings, setSetting } = useSettings();
-  const {
-    workspaces,
-    activeWorkspace,
-    activeWorkspaceId,
-    isLoading: isWorkspacesLoading,
-    switchWorkspace,
-    createWorkspace,
-    deleteWorkspace,
-    renameWorkspace,
-  } = useWorkspaces();
 
   type ModalType = "palette" | "settings" | "workspace" | "debug" | null;
   const [openModal, setOpenModal] = useState<ModalType>(null);
@@ -86,6 +79,10 @@ function App() {
     },
     [deleteNote, notes],
   );
+
+  useEffect(() => {
+    loadWorkspaces();
+  }, [loadWorkspaces]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -181,24 +178,23 @@ function App() {
     if (!activeWorkspaceId) return;
 
     async function loadWorkspaceNotes() {
-      deselectNote();
       await loadNotes();
 
       const key = `write-workspace-${activeWorkspaceId}-selected`;
       const savedPath = localStorage.getItem(key);
-      const entries = await invoke<NoteEntry[]>("list_notes");
+      const storeNotes = useNotesStore.getState().notes;
 
-      if (savedPath && entries.some((n) => n.path === savedPath)) {
+      if (savedPath && storeNotes.some((n) => n.path === savedPath)) {
         selectNote(savedPath);
-      } else if (entries.length > 0) {
-        selectNote(entries[0].path);
+      } else if (storeNotes.length > 0) {
+        selectNote(storeNotes[0].path);
       }
     }
 
     loadWorkspaceNotes();
   }, [activeWorkspaceId]);
 
-  if (isLoading || isWorkspacesLoading) {
+  if (notesLoading || workspacesLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="animate-pulse text-[var(--color-muted)]">
@@ -239,12 +235,7 @@ function App() {
         {selectedPath ? (
           <Editor
             key={`${selectedPath}-${settings.vimMode}`}
-            content={content}
-            filePath={selectedPath}
-            isCreating={isCreating}
             vimMode={settings.vimMode}
-            onPathChanged={onPathChanged}
-            onTitleChange={updateNoteTitle}
             onClose={handleCloseEditor}
           />
         ) : (

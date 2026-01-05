@@ -10,7 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { NoteEntry } from "../hooks/use-files";
+import type { NoteEntry } from "../stores/notes-store";
 
 type CommandItem = {
   type: "command";

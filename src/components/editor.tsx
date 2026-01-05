@@ -8,178 +8,49 @@ import { markdown } from "@codemirror/lang-markdown";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { Vim, vim } from "@replit/codemirror-vim";
-import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { debugLog } from "./debug-panel";
+import { useEffect, useRef } from "react";
+import { useNotesStore } from "../stores/notes-store";
 
 interface EditorProps {
-  content: string;
-  filePath: string;
-  isCreating: boolean;
   vimMode: boolean;
-  onPathChanged: (oldPath: string, newPath: string) => void;
-  onTitleChange: (path: string, title: string) => void;
   onClose: () => void;
 }
 
-export function parseContent(content: string): { title: string; body: string } {
-  const lines = content.split("\n");
-  const titleLineIndex = lines.findIndex((line) => line.startsWith("# "));
-
-  if (titleLineIndex === -1) {
-    return { title: "", body: content };
-  }
-
-  const title = lines[titleLineIndex].slice(2);
-  const body = [
-    ...lines.slice(0, titleLineIndex),
-    ...lines.slice(titleLineIndex + 1),
-  ].join("\n");
-
-  return { title, body };
-}
-
-export function buildContent(title: string, body: string): string {
-  return `# ${title}\n${body}`;
-}
-
-export function Editor({
-  content,
-  filePath,
-  isCreating,
-  vimMode,
-  onPathChanged,
-  onTitleChange,
-  onClose,
-}: EditorProps) {
+export function Editor({ vimMode, onClose }: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
-  const saveTimeoutRef = useRef<number | null>(null);
-  const lastSavedRef = useRef(content);
-  const isSavingRef = useRef(false);
   const vimCompartment = useRef(new Compartment());
 
-  const parsed = useMemo(() => parseContent(content), [content]);
-  const [title, setTitle] = useState(parsed.title);
-  const filePathRef = useRef(filePath);
-  const isCreatingRef = useRef(isCreating);
-
-  const titleStateRef = useRef(title);
-  useEffect(() => {
-    titleStateRef.current = title;
-  }, [title]);
+  const selectedPath = useNotesStore((s) => s.selectedPath);
+  const noteContent = useNotesStore((s) => s.noteContent);
+  const isCreating = useNotesStore((s) => s.isCreating);
+  const setTitle = useNotesStore((s) => s.setTitle);
+  const setBody = useNotesStore((s) => s.setBody);
+  const flush = useNotesStore((s) => s.flush);
 
   useEffect(() => {
-    filePathRef.current = filePath;
-  }, [filePath]);
-
-  const saveNow = useCallback(
-    async (text: string, path: string) => {
-      if (text === lastSavedRef.current || isSavingRef.current) return;
-      isSavingRef.current = true;
-      try {
-        debugLog("editor:save", { path, contentLength: text.length });
-        const newPath = await invoke<string>("write_note", {
-          path,
-          content: text,
-        });
-        lastSavedRef.current = text;
-        if (newPath !== path) {
-          onPathChanged(path, newPath);
-        }
-      } catch (err) {
-        console.error("Failed to save:", err);
-      } finally {
-        isSavingRef.current = false;
-      }
-    },
-    [onPathChanged],
-  );
-
-  const debouncedSave = useCallback(
-    (text: string, path: string) => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      saveTimeoutRef.current = window.setTimeout(() => {
-        saveNow(text, path);
-      }, 300);
-    },
-    [saveNow],
-  );
-
-  useEffect(() => {
-    const wasCreating = isCreatingRef.current;
-    debugLog("editor:isCreatingEffect", {
-      wasCreating,
-      isCreating,
-      filePath,
-      hasView: !!viewRef.current,
-      titleState: titleStateRef.current,
+    if (!vimMode) return;
+    Vim.defineEx("q", "q", onClose);
+    Vim.defineEx("wq", "wq", async () => {
+      await flush();
+      onClose();
     });
-    isCreatingRef.current = isCreating;
-    if (wasCreating && !isCreating && viewRef.current) {
-      const body = viewRef.current.state.doc.toString();
-      const fullContent = buildContent(titleStateRef.current, body);
-      debugLog("editor:creationComplete", {
-        filePath,
-        title: titleStateRef.current,
-        bodyLength: body.length,
-      });
-      debouncedSave(fullContent, filePath);
-    }
-  }, [isCreating, filePath, debouncedSave]);
+  }, [vimMode, onClose, flush]);
 
   useEffect(() => {
-    const newParsed = parseContent(content);
-    debugLog("editor:syncTitle", {
-      filePath,
-      contentLength: content.length,
-      parsedTitle: newParsed.title,
-    });
-    setTitle(newParsed.title);
+    if (!noteContent) return;
     setTimeout(() => {
-      if (!newParsed.title) {
+      if (!noteContent.title) {
         titleInputRef.current?.focus();
       } else {
         viewRef.current?.focus();
       }
     }, 0);
-  }, [content]);
+  }, [selectedPath]);
 
   useEffect(() => {
-    if (!vimMode) return;
-    Vim.defineEx("q", "q", onClose);
-    Vim.defineEx("wq", "wq", onClose);
-  }, [vimMode, onClose]);
-
-  function handleTitleChange(newTitle: string) {
-    debugLog("editor:titleChange", {
-      newTitle,
-      isCreating: isCreatingRef.current,
-      filePath: filePathRef.current,
-    });
-    setTitle(newTitle);
-    onTitleChange(filePathRef.current, newTitle);
-    if (isCreatingRef.current) {
-      debugLog("editor:titleChange:skipSave", { reason: "isCreating" });
-      return;
-    }
-    const body = viewRef.current?.state.doc.toString() ?? "";
-    const fullContent = buildContent(newTitle, body);
-    debouncedSave(fullContent, filePathRef.current);
-  }
-
-  function handleTitleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      viewRef.current?.focus();
-    }
-  }
-
-  useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !noteContent) return;
 
     if (viewRef.current) {
       viewRef.current.destroy();
@@ -195,15 +66,13 @@ export function Editor({
     });
 
     const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged && !isCreatingRef.current) {
-        const body = update.state.doc.toString();
-        const fullContent = buildContent(titleStateRef.current, body);
-        debouncedSave(fullContent, filePathRef.current);
+      if (update.docChanged) {
+        setBody(update.state.doc.toString());
       }
     });
 
     const state = EditorState.create({
-      doc: parsed.body,
+      doc: noteContent.body,
       extensions: [
         vimCompartment.current.of(vimMode ? vim({ status: true }) : []),
         theme,
@@ -222,35 +91,27 @@ export function Editor({
     });
 
     viewRef.current = view;
-    lastSavedRef.current = content;
 
     return () => {
-      debugLog("editor:cleanup", {
-        isCreating: isCreatingRef.current,
-        filePath: filePathRef.current,
-        title: titleStateRef.current,
-      });
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-      if (!isCreatingRef.current) {
-        const body = view.state.doc.toString();
-        const fullContent = buildContent(titleStateRef.current, body);
-        debugLog("editor:cleanup:save", {
-          willSave: fullContent !== lastSavedRef.current,
-          contentLength: fullContent.length,
-          lastSavedLength: lastSavedRef.current.length,
-        });
-        if (fullContent !== lastSavedRef.current) {
-          invoke("write_note", {
-            path: filePathRef.current,
-            content: fullContent,
-          });
-        }
+      if (!isCreating) {
+        flush();
       }
       view.destroy();
     };
-  }, [content, vimMode]);
+  }, [selectedPath, vimMode]);
+
+  function handleTitleChange(newTitle: string) {
+    setTitle(newTitle);
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      viewRef.current?.focus();
+    }
+  }
+
+  if (!noteContent) return null;
 
   return (
     <div className="flex flex-col h-full">
@@ -260,7 +121,7 @@ export function Editor({
             <input
               ref={titleInputRef}
               type="text"
-              value={title}
+              value={noteContent.title}
               onChange={(e) => handleTitleChange(e.target.value)}
               onKeyDown={handleTitleKeyDown}
               placeholder="New Page"
@@ -273,3 +134,5 @@ export function Editor({
     </div>
   );
 }
+
+export { buildContent, parseContent } from "../stores/notes-store";

@@ -16,8 +16,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { ChevronDown, FileText, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { NoteEntry } from "../hooks/use-files";
-import type { Workspace } from "../hooks/use-workspaces";
+import type { NoteEntry, Workspace } from "../stores/notes-store";
 import { debugLog } from "./debug-panel";
 
 interface SidebarProps {
