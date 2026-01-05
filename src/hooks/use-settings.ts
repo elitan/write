@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 interface Settings {
   vimMode: boolean;
@@ -10,7 +10,9 @@ const DEFAULT_SETTINGS: Settings = { vimMode: false };
 function loadSettings(): Settings {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? { ...DEFAULT_SETTINGS, ...JSON.parse(stored) } : DEFAULT_SETTINGS;
+    return stored
+      ? { ...DEFAULT_SETTINGS, ...JSON.parse(stored) }
+      : DEFAULT_SETTINGS;
   } catch {
     return DEFAULT_SETTINGS;
   }

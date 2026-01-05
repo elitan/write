@@ -8,10 +8,14 @@ Minimal markdown notes app for macOS. Tauri 2 (Rust backend) + React 19 + TypeSc
 
 ## Commands
 
+Uses bun (not npm/pnpm).
+
 ```bash
-npm run tauri dev     # dev mode with hot reload
-npm run tauri build   # production build
-npm run typecheck     # type checking only
+bun run tauri dev     # dev mode with hot reload
+bun run tauri build   # production build
+bun run typecheck     # type check
+bun run lint          # lint (biome)
+bun run test          # run tests (vitest + cargo test)
 
 # Release (triggers GitHub Action to build & publish)
 # 1. Bump version in src-tauri/tauri.conf.json

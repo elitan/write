@@ -1,14 +1,11 @@
-import { FileText, Trash2, ChevronDown } from "lucide-react";
-import { useState, useEffect } from "react";
-import { debugLog } from "./debug-panel";
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  DragEndEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -17,8 +14,11 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { ChevronDown, FileText, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { NoteEntry } from "../hooks/use-files";
 import type { Workspace } from "../hooks/use-workspaces";
+import { debugLog } from "./debug-panel";
 
 interface SidebarProps {
   notes: NoteEntry[];
@@ -132,7 +132,7 @@ export function Sidebar({
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   useEffect(() => {
@@ -153,7 +153,10 @@ export function Sidebar({
         target.tagName === "TEXTAREA" ||
         target.isContentEditable
       ) {
-        debugLog("sidebar:skip", { reason: "input focused", target: target.tagName });
+        debugLog("sidebar:skip", {
+          reason: "input focused",
+          target: target.tagName,
+        });
         return;
       }
 
@@ -164,20 +167,28 @@ export function Sidebar({
         focusedIndex,
         notesCount: notes.length,
         selectedPath,
-        notePaths: notes.map(n => n.path.split('/').pop()),
+        notePaths: notes.map((n) => n.path.split("/").pop()),
       });
 
       if (e.key === "ArrowDown" || e.key === "j") {
         e.preventDefault();
         e.stopPropagation();
         const newIndex = Math.min(focusedIndex + 1, notes.length - 1);
-        debugLog("sidebar:nav", { action: "down", from: focusedIndex, to: newIndex });
+        debugLog("sidebar:nav", {
+          action: "down",
+          from: focusedIndex,
+          to: newIndex,
+        });
         setFocusedIndex(newIndex);
       } else if (e.key === "ArrowUp" || e.key === "k") {
         e.preventDefault();
         e.stopPropagation();
         const newIndex = Math.max(focusedIndex - 1, 0);
-        debugLog("sidebar:nav", { action: "up", from: focusedIndex, to: newIndex });
+        debugLog("sidebar:nav", {
+          action: "up",
+          from: focusedIndex,
+          to: newIndex,
+        });
         setFocusedIndex(newIndex);
       } else if (e.key === "Enter" || e.key === "l") {
         e.preventDefault();
@@ -186,7 +197,7 @@ export function Sidebar({
           focusedIndex,
           selectingNote: notes[focusedIndex]?.path,
           currentSelectedPath: selectedPath,
-          allNotes: notes.map(n => n.path.split('/').pop()),
+          allNotes: notes.map((n) => n.path.split("/").pop()),
         });
         if (notes[focusedIndex]) {
           onSelect(notes[focusedIndex].path);

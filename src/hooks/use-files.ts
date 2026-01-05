@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useState } from "react";
 import { debugLog } from "../components/debug-panel";
 
 export interface NoteEntry {
@@ -31,20 +31,29 @@ export function useFiles() {
     loadNotes();
   }, [loadNotes]);
 
-  const selectNote = useCallback(async (path: string) => {
-    debugLog("useFiles:selectNote:start", { requestedPath: path, currentSelectedPath: selectedPath });
-    try {
-      debugLog("useFiles:selectNote:reading", { path });
-      const text = await invoke<string>("read_note", { path });
-      debugLog("useFiles:selectNote:read", { path, contentLength: text.length });
-      setSelectedPath(path);
-      setContent(text);
-      debugLog("useFiles:selectNote:done", { newSelectedPath: path });
-    } catch (err) {
-      debugLog("useFiles:selectNote:error", { path, error: String(err) });
-      console.error("Failed to read note:", err);
-    }
-  }, [selectedPath]);
+  const selectNote = useCallback(
+    async (path: string) => {
+      debugLog("useFiles:selectNote:start", {
+        requestedPath: path,
+        currentSelectedPath: selectedPath,
+      });
+      try {
+        debugLog("useFiles:selectNote:reading", { path });
+        const text = await invoke<string>("read_note", { path });
+        debugLog("useFiles:selectNote:read", {
+          path,
+          contentLength: text.length,
+        });
+        setSelectedPath(path);
+        setContent(text);
+        debugLog("useFiles:selectNote:done", { newSelectedPath: path });
+      } catch (err) {
+        debugLog("useFiles:selectNote:error", { path, error: String(err) });
+        console.error("Failed to read note:", err);
+      }
+    },
+    [selectedPath],
+  );
 
   const deselectNote = useCallback(() => {
     setSelectedPath(null);
@@ -57,16 +66,16 @@ export function useFiles() {
       prev.map((n) =>
         n.path === oldPath
           ? { ...n, path: newPath, name: newPath.split("/").pop()! }
-          : n
-      )
+          : n,
+      ),
     );
   }, []);
 
   const updateNoteTitle = useCallback((path: string, title: string) => {
     setNotes((prev) =>
       prev.map((n) =>
-        n.path === path ? { ...n, title: title || "New Page" } : n
-      )
+        n.path === path ? { ...n, title: title || "New Page" } : n,
+      ),
     );
   }, []);
 
@@ -88,8 +97,8 @@ export function useFiles() {
         prev.map((n) =>
           n.path === tempPath
             ? { ...n, path, name: path.split("/").pop()! }
-            : n
-        )
+            : n,
+        ),
       );
       setSelectedPath(path);
     } catch (err) {
@@ -111,7 +120,7 @@ export function useFiles() {
         console.error("Failed to delete note:", err);
       }
     },
-    [selectedPath, loadNotes]
+    [selectedPath, loadNotes],
   );
 
   const reorderNote = useCallback(
@@ -129,7 +138,7 @@ export function useFiles() {
         console.error("Failed to reorder note:", err);
       }
     },
-    [selectedPath, loadNotes]
+    [selectedPath, loadNotes],
   );
 
   const isCreating = selectedPath?.startsWith("temp-") ?? false;

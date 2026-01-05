@@ -1,11 +1,16 @@
-import { useEffect, useRef, useCallback, useState, useMemo } from "react";
-import { EditorView, keymap, placeholder } from "@codemirror/view";
-import { debugLog } from "./debug-panel";
-import { EditorState, Compartment } from "@codemirror/state";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+} from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { vim, Vim } from "@replit/codemirror-vim";
+import { Compartment, EditorState } from "@codemirror/state";
+import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { Vim, vim } from "@replit/codemirror-vim";
 import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { debugLog } from "./debug-panel";
 
 interface EditorProps {
   content: string;
@@ -38,7 +43,15 @@ export function buildContent(title: string, body: string): string {
   return `# ${title}\n${body}`;
 }
 
-export function Editor({ content, filePath, isCreating, vimMode, onPathChanged, onTitleChange, onClose }: EditorProps) {
+export function Editor({
+  content,
+  filePath,
+  isCreating,
+  vimMode,
+  onPathChanged,
+  onTitleChange,
+  onClose,
+}: EditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -67,7 +80,10 @@ export function Editor({ content, filePath, isCreating, vimMode, onPathChanged, 
       isSavingRef.current = true;
       try {
         debugLog("editor:save", { path, contentLength: text.length });
-        const newPath = await invoke<string>("write_note", { path, content: text });
+        const newPath = await invoke<string>("write_note", {
+          path,
+          content: text,
+        });
         lastSavedRef.current = text;
         if (newPath !== path) {
           onPathChanged(path, newPath);
@@ -78,7 +94,7 @@ export function Editor({ content, filePath, isCreating, vimMode, onPathChanged, 
         isSavingRef.current = false;
       }
     },
-    [onPathChanged]
+    [onPathChanged],
   );
 
   const debouncedSave = useCallback(
@@ -90,7 +106,7 @@ export function Editor({ content, filePath, isCreating, vimMode, onPathChanged, 
         saveNow(text, path);
       }, 300);
     },
-    [saveNow]
+    [saveNow],
   );
 
   useEffect(() => {
@@ -106,7 +122,11 @@ export function Editor({ content, filePath, isCreating, vimMode, onPathChanged, 
     if (wasCreating && !isCreating && viewRef.current) {
       const body = viewRef.current.state.doc.toString();
       const fullContent = buildContent(titleStateRef.current, body);
-      debugLog("editor:creationComplete", { filePath, title: titleStateRef.current, bodyLength: body.length });
+      debugLog("editor:creationComplete", {
+        filePath,
+        title: titleStateRef.current,
+        bodyLength: body.length,
+      });
       debouncedSave(fullContent, filePath);
     }
   }, [isCreating, filePath, debouncedSave]);
@@ -135,7 +155,11 @@ export function Editor({ content, filePath, isCreating, vimMode, onPathChanged, 
   }, [vimMode, onClose]);
 
   function handleTitleChange(newTitle: string) {
-    debugLog("editor:titleChange", { newTitle, isCreating: isCreatingRef.current, filePath: filePathRef.current });
+    debugLog("editor:titleChange", {
+      newTitle,
+      isCreating: isCreatingRef.current,
+      filePath: filePathRef.current,
+    });
     setTitle(newTitle);
     onTitleChange(filePathRef.current, newTitle);
     if (isCreatingRef.current) {
@@ -218,7 +242,10 @@ export function Editor({ content, filePath, isCreating, vimMode, onPathChanged, 
           lastSavedLength: lastSavedRef.current.length,
         });
         if (fullContent !== lastSavedRef.current) {
-          invoke("write_note", { path: filePathRef.current, content: fullContent });
+          invoke("write_note", {
+            path: filePathRef.current,
+            content: fullContent,
+          });
         }
       }
       view.destroy();

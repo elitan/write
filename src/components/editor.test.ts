@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { parseContent, buildContent } from "./editor";
+import { describe, expect, it } from "vitest";
+import { buildContent, parseContent } from "./editor";
 
 describe("parseContent", () => {
   it("extracts title from markdown h1", () => {

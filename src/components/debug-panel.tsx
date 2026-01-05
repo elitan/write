@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface LogEntry {
   id: number;
@@ -99,13 +99,22 @@ export function DebugPanel({ state, isOpen, onClose }: DebugPanelProps) {
       <div className="flex items-center justify-between px-3 py-2 bg-green-900/30 border-b border-green-800">
         <span className="font-bold">Debug Panel (Cmd+Shift+D to toggle)</span>
         <div className="flex gap-2">
-          <button onClick={clearLogs} className="px-2 py-0.5 bg-green-800 rounded hover:bg-green-700">
+          <button
+            onClick={clearLogs}
+            className="px-2 py-0.5 bg-green-800 rounded hover:bg-green-700"
+          >
             Clear
           </button>
-          <button onClick={copyLogs} className="px-2 py-0.5 bg-green-800 rounded hover:bg-green-700">
+          <button
+            onClick={copyLogs}
+            className="px-2 py-0.5 bg-green-800 rounded hover:bg-green-700"
+          >
             Copy All
           </button>
-          <button onClick={onClose} className="px-2 py-0.5 bg-red-800 rounded hover:bg-red-700">
+          <button
+            onClick={onClose}
+            className="px-2 py-0.5 bg-red-800 rounded hover:bg-red-700"
+          >
             Close
           </button>
         </div>

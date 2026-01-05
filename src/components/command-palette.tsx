@@ -1,7 +1,15 @@
-import { useState, useEffect, useRef, useMemo } from "react";
-import { Search, FileText, RefreshCw, Settings, Trash2, FolderOpen, Bug } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import Fuse from "fuse.js";
+import {
+  Bug,
+  FileText,
+  FolderOpen,
+  RefreshCw,
+  Search,
+  Settings,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { NoteEntry } from "../hooks/use-files";
 
 type CommandItem = {
@@ -48,18 +56,52 @@ export function CommandPalette({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const commands: CommandItem[] = [
-    { type: "command", id: "settings", title: "Settings", icon: "settings", action: onOpenSettings },
-    { type: "command", id: "update", title: "Check for updates", icon: "update", action: onCheckForUpdates },
-    { type: "command", id: "debug", title: "Toggle Debug Panel", icon: "debug", action: onToggleDebug },
+    {
+      type: "command",
+      id: "settings",
+      title: "Settings",
+      icon: "settings",
+      action: onOpenSettings,
+    },
+    {
+      type: "command",
+      id: "update",
+      title: "Check for updates",
+      icon: "update",
+      action: onCheckForUpdates,
+    },
+    {
+      type: "command",
+      id: "debug",
+      title: "Toggle Debug Panel",
+      icon: "debug",
+      action: onToggleDebug,
+    },
     ...(selectedPath
       ? [
-          { type: "command" as const, id: "finder", title: "Reveal in Finder", icon: "finder" as const, action: () => invoke("reveal_in_finder", { path: selectedPath }) },
-          { type: "command" as const, id: "delete", title: "Delete current page", icon: "delete" as const, action: onDeleteCurrent },
+          {
+            type: "command" as const,
+            id: "finder",
+            title: "Reveal in Finder",
+            icon: "finder" as const,
+            action: () => invoke("reveal_in_finder", { path: selectedPath }),
+          },
+          {
+            type: "command" as const,
+            id: "delete",
+            title: "Delete current page",
+            icon: "delete" as const,
+            action: onDeleteCurrent,
+          },
         ]
       : []),
   ];
 
-  const noteItems: NoteItem[] = notes.map((n) => ({ type: "note", path: n.path, title: n.title }));
+  const noteItems: NoteItem[] = notes.map((n) => ({
+    type: "note",
+    path: n.path,
+    title: n.title,
+  }));
   const allItems: PaletteItem[] = [...commands, ...noteItems];
 
   const fuse = useMemo(
@@ -69,7 +111,7 @@ export function CommandPalette({
         threshold: 0.4,
         includeScore: true,
       }),
-    [allItems]
+    [allItems],
   );
 
   const results = useMemo(() => {
@@ -132,21 +174,31 @@ export function CommandPalette({
 
   function getIcon(item: PaletteItem) {
     if (item.type === "note") {
-      return <FileText size={16} className="shrink-0 text-[var(--color-muted)]" />;
+      return (
+        <FileText size={16} className="shrink-0 text-[var(--color-muted)]" />
+      );
     }
     if (item.icon === "settings") {
-      return <Settings size={16} className="shrink-0 text-[var(--color-muted)]" />;
+      return (
+        <Settings size={16} className="shrink-0 text-[var(--color-muted)]" />
+      );
     }
     if (item.icon === "delete") {
-      return <Trash2 size={16} className="shrink-0 text-[var(--color-muted)]" />;
+      return (
+        <Trash2 size={16} className="shrink-0 text-[var(--color-muted)]" />
+      );
     }
     if (item.icon === "finder") {
-      return <FolderOpen size={16} className="shrink-0 text-[var(--color-muted)]" />;
+      return (
+        <FolderOpen size={16} className="shrink-0 text-[var(--color-muted)]" />
+      );
     }
     if (item.icon === "debug") {
       return <Bug size={16} className="shrink-0 text-[var(--color-muted)]" />;
     }
-    return <RefreshCw size={16} className="shrink-0 text-[var(--color-muted)]" />;
+    return (
+      <RefreshCw size={16} className="shrink-0 text-[var(--color-muted)]" />
+    );
   }
 
   return (
@@ -209,7 +261,6 @@ export function CommandPalette({
           )}
         </div>
       </div>
-
     </div>
   );
 }

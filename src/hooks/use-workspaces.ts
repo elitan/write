@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { useCallback, useEffect, useState } from "react";
 
 export interface Workspace {
   id: string;
@@ -14,7 +14,9 @@ interface WorkspaceConfig {
 
 export function useWorkspaces() {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
 
   const loadWorkspaces = useCallback(async () => {
@@ -33,7 +35,8 @@ export function useWorkspaces() {
     loadWorkspaces();
   }, [loadWorkspaces]);
 
-  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId) || null;
+  const activeWorkspace =
+    workspaces.find((w) => w.id === activeWorkspaceId) || null;
 
   async function switchWorkspace(workspaceId: string) {
     try {
@@ -74,8 +77,13 @@ export function useWorkspaces() {
 
   async function renameWorkspace(workspaceId: string, newName: string) {
     try {
-      const updated = await invoke<Workspace>("rename_workspace", { workspaceId, newName });
-      setWorkspaces((prev) => prev.map((w) => (w.id === workspaceId ? updated : w)));
+      const updated = await invoke<Workspace>("rename_workspace", {
+        workspaceId,
+        newName,
+      });
+      setWorkspaces((prev) =>
+        prev.map((w) => (w.id === workspaceId ? updated : w)),
+      );
       return updated;
     } catch (err) {
       console.error("Failed to rename workspace:", err);

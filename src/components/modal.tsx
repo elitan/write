@@ -1,5 +1,5 @@
-import { useEffect } from "react";
 import { X } from "lucide-react";
+import { useEffect } from "react";
 
 interface ModalProps {
   isOpen: boolean;
@@ -49,7 +49,6 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
           <div className="p-4">{children}</div>
         </div>
       </div>
-
     </div>
   );
 }

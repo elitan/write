@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, Pencil } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import type { Workspace } from "../hooks/use-workspaces";
 
 interface WorkspaceSwitcherProps {
@@ -29,7 +29,10 @@ export function WorkspaceSwitcher({
   const [newName, setNewName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const items = [...workspaces, { id: "__create__", name: "New workspace...", shortcut: null }];
+  const items = [
+    ...workspaces,
+    { id: "__create__", name: "New workspace...", shortcut: null },
+  ];
 
   useEffect(() => {
     if (isOpen) {
@@ -46,7 +49,9 @@ export function WorkspaceSwitcher({
     }
   }, [isCreating, renamingId]);
 
-  function handleSelect(item: Workspace | { id: string; name: string; shortcut: null }) {
+  function handleSelect(
+    item: Workspace | { id: string; name: string; shortcut: null },
+  ) {
     if (item.id === "__create__") {
       setIsCreating(true);
     } else {
@@ -114,7 +119,7 @@ export function WorkspaceSwitcher({
         return;
       }
 
-      const numKey = parseInt(e.key);
+      const numKey = parseInt(e.key, 10);
       if (numKey >= 1 && numKey <= 9) {
         const workspace = workspaces.find((w) => w.shortcut === e.key);
         if (workspace) {
@@ -147,13 +152,14 @@ export function WorkspaceSwitcher({
           e.preventDefault();
           setIsCreating(true);
           break;
-        case "r":
+        case "r": {
           e.preventDefault();
           const item = items[selectedIndex];
           if (item && item.id !== "__create__") {
             startRenaming(item.id, item.name);
           }
           break;
+        }
         case "Escape":
           e.preventDefault();
           onClose();
@@ -163,7 +169,15 @@ export function WorkspaceSwitcher({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, items, selectedIndex, onClose, isCreating, renamingId, workspaces]);
+  }, [
+    isOpen,
+    items,
+    selectedIndex,
+    onClose,
+    isCreating,
+    renamingId,
+    workspaces,
+  ]);
 
   if (!isOpen) return null;
 
@@ -182,7 +196,9 @@ export function WorkspaceSwitcher({
         style={{ animation: "paletteSlideIn 100ms ease" }}
       >
         <div className="px-4 py-3 border-b border-[var(--color-border)]">
-          <span className="text-sm text-[var(--color-muted)]">Switch Workspace</span>
+          <span className="text-sm text-[var(--color-muted)]">
+            Switch Workspace
+          </span>
         </div>
 
         {isCreating || renamingId ? (
@@ -232,7 +248,10 @@ export function WorkspaceSwitcher({
                   }`}
                 >
                   {isCreateItem ? (
-                    <Plus size={16} className="shrink-0 text-[var(--color-muted)]" />
+                    <Plus
+                      size={16}
+                      className="shrink-0 text-[var(--color-muted)]"
+                    />
                   ) : item.shortcut ? (
                     <kbd className="w-5 h-5 flex items-center justify-center text-[11px] text-[var(--color-muted)] bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded">
                       {item.shortcut}
@@ -241,7 +260,9 @@ export function WorkspaceSwitcher({
                     <span className="w-5" />
                   )}
 
-                  <span className="flex-1 truncate text-[14px]">{item.name}</span>
+                  <span className="flex-1 truncate text-[14px]">
+                    {item.name}
+                  </span>
 
                   {!isCreateItem && (
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
@@ -252,14 +273,20 @@ export function WorkspaceSwitcher({
                         }}
                         className="p-1 rounded hover:bg-[var(--color-border)]"
                       >
-                        <Pencil size={14} className="text-[var(--color-muted)]" />
+                        <Pencil
+                          size={14}
+                          className="text-[var(--color-muted)]"
+                        />
                       </button>
                       {!isActive && workspaces.length > 1 && (
                         <button
                           onClick={(e) => handleDelete(e, item.id)}
                           className="p-1 rounded hover:bg-[var(--color-border)]"
                         >
-                          <Trash2 size={14} className="text-[var(--color-muted)]" />
+                          <Trash2
+                            size={14}
+                            className="text-[var(--color-muted)]"
+                          />
                         </button>
                       )}
                     </div>
@@ -276,7 +303,6 @@ export function WorkspaceSwitcher({
           </div>
         )}
       </div>
-
     </div>
   );
 }

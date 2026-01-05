@@ -1,19 +1,19 @@
-import { useEffect, useState, useCallback, useRef } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { Sidebar } from "./components/sidebar";
+import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CommandPalette } from "./components/command-palette";
+import { DebugPanel, debugLog } from "./components/debug-panel";
 import { Editor } from "./components/editor";
 import { EmptyState } from "./components/empty-state";
-import { CommandPalette } from "./components/command-palette";
-import { UpdatePrompt } from "./components/update-prompt";
-import { SettingsPopover } from "./components/settings-popover";
-import { WorkspaceSwitcher } from "./components/workspace-switcher";
 import { Modal } from "./components/modal";
-import { DebugPanel, debugLog } from "./components/debug-panel";
-import { useFiles, type NoteEntry } from "./hooks/use-files";
-import { useUpdater } from "./hooks/use-updater";
+import { SettingsPopover } from "./components/settings-popover";
+import { Sidebar } from "./components/sidebar";
+import { UpdatePrompt } from "./components/update-prompt";
+import { WorkspaceSwitcher } from "./components/workspace-switcher";
+import { type NoteEntry, useFiles } from "./hooks/use-files";
 import { useSettings } from "./hooks/use-settings";
+import { useUpdater } from "./hooks/use-updater";
 import { useWorkspaces } from "./hooks/use-workspaces";
 
 function App() {
@@ -33,7 +33,12 @@ function App() {
     reorderNote,
   } = useFiles();
 
-  const { updateAvailable, readyToInstall, restartAndInstall, checkForUpdates } = useUpdater();
+  const {
+    updateAvailable,
+    readyToInstall,
+    restartAndInstall,
+    checkForUpdates,
+  } = useUpdater();
   const { settings, setSetting } = useSettings();
   const {
     workspaces,
@@ -48,7 +53,10 @@ function App() {
 
   type ModalType = "palette" | "settings" | "workspace" | "debug" | null;
   const [openModal, setOpenModal] = useState<ModalType>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ path: string; title: string } | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    path: string;
+    title: string;
+  } | null>(null);
   const [sidebarFocused, setSidebarFocused] = useState(false);
 
   const handleCloseEditor = useCallback(() => {
@@ -64,7 +72,10 @@ function App() {
       const body =
         titleLineIndex === -1
           ? text
-          : [...lines.slice(0, titleLineIndex), ...lines.slice(titleLineIndex + 1)].join("\n");
+          : [
+              ...lines.slice(0, titleLineIndex),
+              ...lines.slice(titleLineIndex + 1),
+            ].join("\n");
 
       if (body.trim() === "") {
         deleteNote(path);
@@ -73,7 +84,7 @@ function App() {
         setDeleteConfirm({ path, title: note?.title || "Untitled" });
       }
     },
-    [deleteNote, notes]
+    [deleteNote, notes],
   );
 
   useEffect(() => {
@@ -107,7 +118,10 @@ function App() {
         handleDeleteRequest(selectedPath);
       } else if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "e") {
         e.preventDefault();
-        debugLog("app:action", { action: "focusSidebar", before: sidebarFocused });
+        debugLog("app:action", {
+          action: "focusSidebar",
+          before: sidebarFocused,
+        });
         if (document.activeElement instanceof HTMLElement) {
           document.activeElement.blur();
         }
@@ -120,7 +134,10 @@ function App() {
         const workspace = workspaces.find((w) => w.shortcut === e.key);
         if (workspace && workspace.id !== activeWorkspaceId) {
           e.preventDefault();
-          debugLog("app:action", { action: "switchWorkspace", workspace: workspace.name });
+          debugLog("app:action", {
+            action: "switchWorkspace",
+            workspace: workspace.name,
+          });
           switchWorkspace(workspace.id);
         }
       }
@@ -128,7 +145,15 @@ function App() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [createNote, selectedPath, handleDeleteRequest, workspaces, activeWorkspaceId, switchWorkspace, sidebarFocused]);
+  }, [
+    createNote,
+    selectedPath,
+    handleDeleteRequest,
+    workspaces,
+    activeWorkspaceId,
+    switchWorkspace,
+    sidebarFocused,
+  ]);
 
   useEffect(() => {
     const unlisten = listen("tauri://focus", () => {
@@ -176,7 +201,9 @@ function App() {
   if (isLoading || isWorkspacesLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-pulse text-[var(--color-muted)]">Loading...</div>
+        <div className="animate-pulse text-[var(--color-muted)]">
+          Loading...
+        </div>
       </div>
     );
   }
@@ -232,9 +259,13 @@ function App() {
         onSelect={selectNote}
         onCheckForUpdates={checkForUpdates}
         onOpenSettings={() => setOpenModal("settings")}
-        onToggleDebug={() => setOpenModal((m) => (m === "debug" ? null : "debug"))}
+        onToggleDebug={() =>
+          setOpenModal((m) => (m === "debug" ? null : "debug"))
+        }
         selectedPath={selectedPath}
-        onDeleteCurrent={() => selectedPath && handleDeleteRequest(selectedPath)}
+        onDeleteCurrent={() =>
+          selectedPath && handleDeleteRequest(selectedPath)
+        }
       />
 
       {readyToInstall && updateAvailable && (
