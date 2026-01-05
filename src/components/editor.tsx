@@ -5,11 +5,63 @@ import {
   indentWithTab,
 } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import {
+  HighlightStyle,
+  syntaxHighlighting,
+  syntaxTree,
+} from "@codemirror/language";
 import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
 import { Vim, vim } from "@replit/codemirror-vim";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef } from "react";
 import { useNotesStore } from "../stores/notes-store";
+
+const markdownHighlight = HighlightStyle.define([
+  { tag: tags.heading1, fontSize: "1.6em", fontWeight: "600" },
+  { tag: tags.heading2, fontSize: "1.4em", fontWeight: "600" },
+  { tag: tags.heading3, fontSize: "1.2em", fontWeight: "600" },
+  { tag: tags.heading4, fontSize: "1.1em", fontWeight: "600" },
+  { tag: tags.heading5, fontSize: "1.05em", fontWeight: "600" },
+  { tag: tags.heading6, fontSize: "1em", fontWeight: "600" },
+  { tag: tags.strong, fontWeight: "600" },
+  { tag: tags.emphasis, fontStyle: "italic" },
+  { tag: tags.strikethrough, textDecoration: "line-through" },
+  { tag: tags.monospace, fontFamily: "var(--font-mono)" },
+  { tag: tags.link, color: "var(--color-accent)" },
+  { tag: tags.url, color: "var(--color-muted)" },
+  { tag: tags.quote, color: "var(--color-muted)", fontStyle: "italic" },
+  {
+    tag: tags.processingInstruction,
+    color: "var(--color-muted)",
+    opacity: "0.6",
+  },
+]);
+
+const clickableLinks = EditorView.domEventHandlers({
+  click(event, view) {
+    if (!event.metaKey && !event.ctrlKey) return false;
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos === null) return false;
+    const tree = syntaxTree(view.state);
+    let url: string | null = null;
+    tree.iterate({
+      from: pos,
+      to: pos,
+      enter(node) {
+        if (node.name === "URL") {
+          url = view.state.sliceDoc(node.from, node.to);
+        }
+      },
+    });
+    if (url) {
+      openUrl(url);
+      return true;
+    }
+    return false;
+  },
+});
 
 interface EditorProps {
   vimMode: boolean;
@@ -77,6 +129,8 @@ export function Editor({ vimMode, onClose }: EditorProps) {
         vimCompartment.current.of(vimMode ? vim({ status: true }) : []),
         theme,
         markdown(),
+        syntaxHighlighting(markdownHighlight),
+        clickableLinks,
         history(),
         keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
         placeholder("Start writing..."),
