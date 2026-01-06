@@ -22,7 +22,8 @@ function App() {
   const workspacesLoading = useNotesStore((s) => s.workspacesLoading);
   const workspaces = useNotesStore((s) => s.workspaces);
   const activeWorkspaceId = useNotesStore((s) => s.activeWorkspaceId);
-  const activeWorkspace = useNotesStore((s) => s.activeWorkspace);
+  const activeWorkspace =
+    workspaces.find((w) => w.id === activeWorkspaceId) ?? null;
 
   const loadWorkspaces = useNotesStore((s) => s.loadWorkspaces);
   const loadNotes = useNotesStore((s) => s.loadNotes);
