@@ -10,8 +10,16 @@ import {
   syntaxHighlighting,
   syntaxTree,
 } from "@codemirror/language";
-import { Compartment, EditorState } from "@codemirror/state";
-import { EditorView, keymap, placeholder } from "@codemirror/view";
+import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
+import {
+  Decoration,
+  EditorView,
+  ViewPlugin,
+  ViewUpdate,
+  WidgetType,
+  keymap,
+  placeholder,
+} from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { Vim, vim } from "@replit/codemirror-vim";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -19,25 +27,108 @@ import { useEffect, useRef } from "react";
 import { useNotesStore } from "../stores/notes-store";
 
 const markdownHighlight = HighlightStyle.define([
-  { tag: tags.heading1, fontSize: "1.6em", fontWeight: "600" },
-  { tag: tags.heading2, fontSize: "1.4em", fontWeight: "600" },
-  { tag: tags.heading3, fontSize: "1.2em", fontWeight: "600" },
+  {
+    tag: tags.heading1,
+    fontSize: "1.75em",
+    fontWeight: "700",
+    letterSpacing: "-0.02em",
+  },
+  {
+    tag: tags.heading2,
+    fontSize: "1.5em",
+    fontWeight: "600",
+    letterSpacing: "-0.01em",
+  },
+  {
+    tag: tags.heading3,
+    fontSize: "1.25em",
+    fontWeight: "600",
+    letterSpacing: "-0.01em",
+  },
   { tag: tags.heading4, fontSize: "1.1em", fontWeight: "600" },
   { tag: tags.heading5, fontSize: "1.05em", fontWeight: "600" },
   { tag: tags.heading6, fontSize: "1em", fontWeight: "600" },
   { tag: tags.strong, fontWeight: "600" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
-  { tag: tags.monospace, fontFamily: "var(--font-mono)" },
+  {
+    tag: tags.monospace,
+    fontFamily: "var(--font-mono)",
+    fontSize: "0.9em",
+    backgroundColor: "var(--color-sidebar)",
+    padding: "2px 4px",
+    borderRadius: "4px",
+  },
   { tag: tags.link, color: "var(--color-accent)" },
-  { tag: tags.url, color: "var(--color-muted)" },
+  { tag: tags.url, color: "var(--color-muted)", fontSize: "0.95em" },
   { tag: tags.quote, color: "var(--color-muted)", fontStyle: "italic" },
   {
     tag: tags.processingInstruction,
     color: "var(--color-muted)",
-    opacity: "0.6",
+    opacity: "0.5",
   },
 ]);
+
+const bulletChars = ["●", "○", "■"];
+
+class BulletWidget extends WidgetType {
+  constructor(readonly level: number) {
+    super();
+  }
+
+  toDOM() {
+    const span = document.createElement("span");
+    span.textContent = bulletChars[this.level % 3];
+    span.className = "cm-list-bullet";
+    return span;
+  }
+
+  eq(other: BulletWidget) {
+    return other.level === this.level;
+  }
+}
+
+function buildBulletDecorations(view: EditorView) {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const { from, to } of view.visibleRanges) {
+    const text = view.state.doc.sliceString(from, to);
+    const lines = text.split("\n");
+    let pos = from;
+    for (const line of lines) {
+      const match = line.match(/^(\s*)- /);
+      if (match) {
+        const indentChars = match[1].length;
+        const level = Math.floor(indentChars / 2);
+        const dashStart = pos + indentChars;
+        const dashEnd = dashStart + 2;
+        builder.add(
+          dashStart,
+          dashEnd,
+          Decoration.replace({ widget: new BulletWidget(level) })
+        );
+      }
+      pos += line.length + 1;
+    }
+  }
+  return builder.finish();
+}
+
+const bulletPlugin = ViewPlugin.fromClass(
+  class {
+    decorations = Decoration.none;
+
+    constructor(view: EditorView) {
+      this.decorations = buildBulletDecorations(view);
+    }
+
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = buildBulletDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations }
+);
 
 const clickableLinks = EditorView.domEventHandlers({
   click(event, view) {
@@ -112,9 +203,6 @@ export function Editor({ vimMode, onClose }: EditorProps) {
       "&": {
         height: "100%",
       },
-      ".cm-scroller": {
-        fontFamily: "var(--font-mono)",
-      },
     });
 
     const updateListener = EditorView.updateListener.of((update) => {
@@ -130,6 +218,7 @@ export function Editor({ vimMode, onClose }: EditorProps) {
         theme,
         markdown(),
         syntaxHighlighting(markdownHighlight),
+        bulletPlugin,
         clickableLinks,
         history(),
         keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
@@ -171,7 +260,7 @@ export function Editor({ vimMode, onClose }: EditorProps) {
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-hidden" style={{ paddingTop: 52 }}>
         <div className="h-full overflow-y-auto">
-          <div className="px-6 pt-6">
+          <div className="px-12 pt-10">
             <input
               ref={titleInputRef}
               type="text"
@@ -182,7 +271,7 @@ export function Editor({ vimMode, onClose }: EditorProps) {
               className="editor-title"
             />
           </div>
-          <div ref={containerRef} className="px-6 pb-6" />
+          <div ref={containerRef} className="px-12 pb-12" />
         </div>
       </div>
     </div>

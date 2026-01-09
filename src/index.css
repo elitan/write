@@ -21,11 +21,11 @@
 
 @media (prefers-color-scheme: dark) {
   @theme {
-    --color-bg: #0a0a0a;
-    --color-sidebar: #141414;
-    --color-border: #262626;
-    --color-text: #fafafa;
-    --color-muted: #a3a3a3;
+    --color-bg: #191919;
+    --color-sidebar: #121212;
+    --color-border: #2f2f2f;
+    --color-text: #f0efed;
+    --color-muted: #9a9a97;
     --color-accent-light: #22c55e33;
   }
 }
@@ -72,18 +72,26 @@ body {
 
 .cm-editor {
   height: 100%;
-  font-family: var(--font-mono);
-  font-size: 15px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
   background: transparent !important;
 }
 
 .cm-editor .cm-content {
   padding: 0;
   caret-color: var(--color-accent);
+  max-width: 720px;
 }
 
 .cm-editor .cm-line {
-  padding: 0;
+  padding: 3px 0;
+}
+
+.cm-list-bullet {
+  display: inline-block;
+  width: 24px;
+  font-size: 10px;
 }
 
 .cm-editor .cm-gutters {
@@ -134,16 +142,18 @@ body {
 
 .editor-title {
   width: 100%;
-  font-family: var(--font-mono);
-  font-size: 32px;
-  font-weight: 600;
+  max-width: 720px;
+  font-family: var(--font-sans);
+  font-size: 40px;
+  font-weight: 700;
   line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--color-text);
   background: transparent;
   border: none;
   outline: none;
   padding: 0;
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 .editor-title::placeholder {
