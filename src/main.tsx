@@ -1,15 +1,13 @@
-import React from "react";
-import ReactDOM from "react-dom/client";
-import App from "./app";
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/inter/700.css";
-import "@fontsource/jetbrains-mono/400.css";
-import "./index.css";
+// The opsz build lets Inter switch to its text cut at body sizes.
+import "@fontsource-variable/inter/opsz.css";
+import "@fontsource-variable/geist-mono";
+import "./styles.css";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import { App } from "./app";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
+createRoot(document.getElementById("root")!).render(
+  <StrictMode>
     <App />
-  </React.StrictMode>,
+  </StrictMode>,
 );

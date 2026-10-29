@@ -1,281 +1,150 @@
-import {
-  defaultKeymap,
-  history,
-  historyKeymap,
-  indentWithTab,
-} from "@codemirror/commands";
-import { markdown } from "@codemirror/lang-markdown";
-import {
-  HighlightStyle,
-  syntaxHighlighting,
-  syntaxTree,
-} from "@codemirror/language";
-import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
-import {
-  Decoration,
-  EditorView,
-  ViewPlugin,
-  ViewUpdate,
-  WidgetType,
-  keymap,
-  placeholder,
-} from "@codemirror/view";
-import { tags } from "@lezer/highlight";
-import { Vim, vim } from "@replit/codemirror-vim";
-import { openUrl } from "@tauri-apps/plugin-opener";
-import { useEffect, useRef } from "react";
-import { useNotesStore } from "../stores/notes-store";
+import { useEffect, useLayoutEffect, useRef } from "react";
+import { loadVim } from "../editor/extensions";
+import * as session from "../editor/session";
+import { editedAgo, fullTime, plural } from "../lib/format";
+import { useNotes } from "../store/notes";
+import { useSettings } from "../store/settings";
+import { useUi } from "../store/ui";
 
-const markdownHighlight = HighlightStyle.define([
-  {
-    tag: tags.heading1,
-    fontSize: "1.75em",
-    fontWeight: "700",
-    letterSpacing: "-0.02em",
-  },
-  {
-    tag: tags.heading2,
-    fontSize: "1.5em",
-    fontWeight: "600",
-    letterSpacing: "-0.01em",
-  },
-  {
-    tag: tags.heading3,
-    fontSize: "1.25em",
-    fontWeight: "600",
-    letterSpacing: "-0.01em",
-  },
-  { tag: tags.heading4, fontSize: "1.1em", fontWeight: "600" },
-  { tag: tags.heading5, fontSize: "1.05em", fontWeight: "600" },
-  { tag: tags.heading6, fontSize: "1em", fontWeight: "600" },
-  { tag: tags.strong, fontWeight: "600" },
-  { tag: tags.emphasis, fontStyle: "italic" },
-  { tag: tags.strikethrough, textDecoration: "line-through" },
-  {
-    tag: tags.monospace,
-    fontFamily: "var(--font-mono)",
-    fontSize: "0.9em",
-    backgroundColor: "var(--color-sidebar)",
-    padding: "2px 4px",
-    borderRadius: "4px",
-  },
-  { tag: tags.link, color: "var(--color-accent)" },
-  { tag: tags.url, color: "var(--color-muted)", fontSize: "0.95em" },
-  { tag: tags.quote, color: "var(--color-muted)", fontStyle: "italic" },
-  {
-    tag: tags.processingInstruction,
-    color: "var(--color-muted)",
-    opacity: "0.5",
-  },
-]);
-
-const bulletChars = ["●", "○", "■"];
-
-class BulletWidget extends WidgetType {
-  constructor(readonly level: number) {
-    super();
-  }
-
-  toDOM() {
-    const span = document.createElement("span");
-    span.textContent = bulletChars[this.level % 3];
-    span.className = "cm-list-bullet";
-    return span;
-  }
-
-  eq(other: BulletWidget) {
-    return other.level === this.level;
-  }
+function autosize(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "0px";
+  el.style.height = `${el.scrollHeight}px`;
 }
 
-function buildBulletDecorations(view: EditorView) {
-  const builder = new RangeSetBuilder<Decoration>();
-  for (const { from, to } of view.visibleRanges) {
-    const text = view.state.doc.sliceString(from, to);
-    const lines = text.split("\n");
-    let pos = from;
-    for (const line of lines) {
-      const match = line.match(/^(\s*)- /);
-      if (match) {
-        const indentChars = match[1].length;
-        const level = Math.floor(indentChars / 2);
-        const dashStart = pos + indentChars;
-        const dashEnd = dashStart + 2;
-        builder.add(
-          dashStart,
-          dashEnd,
-          Decoration.replace({ widget: new BulletWidget(level) })
-        );
-      }
-      pos += line.length + 1;
-    }
-  }
-  return builder.finish();
-}
-
-const bulletPlugin = ViewPlugin.fromClass(
-  class {
-    decorations = Decoration.none;
-
-    constructor(view: EditorView) {
-      this.decorations = buildBulletDecorations(view);
-    }
-
-    update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
-        this.decorations = buildBulletDecorations(update.view);
-      }
-    }
-  },
-  { decorations: (v) => v.decorations }
-);
-
-const clickableLinks = EditorView.domEventHandlers({
-  click(event, view) {
-    if (!event.metaKey && !event.ctrlKey) return false;
-    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-    if (pos === null) return false;
-    const tree = syntaxTree(view.state);
-    let url: string | null = null;
-    tree.iterate({
-      from: pos,
-      to: pos,
-      enter(node) {
-        if (node.name === "URL") {
-          url = view.state.sliceDoc(node.from, node.to);
-        }
-      },
-    });
-    if (url) {
-      openUrl(url);
-      return true;
-    }
-    return false;
-  },
-});
-
-interface EditorProps {
-  vimMode: boolean;
-  onClose: () => void;
-}
-
-export function Editor({ vimMode, onClose }: EditorProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
-  const titleInputRef = useRef<HTMLInputElement>(null);
-  const vimCompartment = useRef(new Compartment());
-
-  const selectedPath = useNotesStore((s) => s.selectedPath);
-  const noteContent = useNotesStore((s) => s.noteContent);
-  const isCreating = useNotesStore((s) => s.isCreating);
-  const setTitle = useNotesStore((s) => s.setTitle);
-  const setBody = useNotesStore((s) => s.setBody);
-  const flush = useNotesStore((s) => s.flush);
-
-  useEffect(() => {
-    if (!vimMode) return;
-    Vim.defineEx("q", "q", onClose);
-    Vim.defineEx("wq", "wq", async () => {
-      await flush();
-      onClose();
-    });
-  }, [vimMode, onClose, flush]);
-
-  useEffect(() => {
-    if (!noteContent) return;
-    setTimeout(() => {
-      if (!noteContent.title) {
-        titleInputRef.current?.focus();
-      } else {
-        viewRef.current?.focus();
-      }
-    }, 0);
-  }, [selectedPath]);
-
-  useEffect(() => {
-    if (!containerRef.current || !noteContent) return;
-
-    if (viewRef.current) {
-      viewRef.current.destroy();
-    }
-
-    const theme = EditorView.theme({
-      "&": {
-        height: "100%",
-      },
-    });
-
-    const updateListener = EditorView.updateListener.of((update) => {
-      if (update.docChanged) {
-        setBody(update.state.doc.toString());
-      }
-    });
-
-    const state = EditorState.create({
-      doc: noteContent.body,
-      extensions: [
-        vimCompartment.current.of(vimMode ? vim({ status: true }) : []),
-        theme,
-        markdown(),
-        syntaxHighlighting(markdownHighlight),
-        bulletPlugin,
-        clickableLinks,
-        history(),
-        keymap.of([indentWithTab, ...defaultKeymap, ...historyKeymap]),
-        placeholder("Start writing..."),
-        updateListener,
-        EditorView.lineWrapping,
-      ],
-    });
-
-    const view = new EditorView({
-      state,
-      parent: containerRef.current,
-    });
-
-    viewRef.current = view;
-
-    return () => {
-      if (!isCreating) {
-        flush();
-      }
-      view.destroy();
-    };
-  }, [selectedPath, vimMode]);
-
-  function handleTitleChange(newTitle: string) {
-    setTitle(newTitle);
-  }
-
-  function handleTitleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      viewRef.current?.focus();
-    }
-  }
-
-  if (!noteContent) return null;
-
+function Meta() {
+  const modified = useNotes(
+    (s) => s.notes.find((n) => n.id === s.selectedId)?.modified,
+  );
+  const words = useNotes((s) => s.wordCount);
+  const unsaved = useNotes(
+    (s) => !s.notes.find((n) => n.id === s.selectedId)?.path,
+  );
+  if (modified === undefined) return null;
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-hidden" style={{ paddingTop: 52 }}>
-        <div className="h-full overflow-y-auto">
-          <div className="px-12 pt-10">
-            <input
-              ref={titleInputRef}
-              type="text"
-              value={noteContent.title}
-              onChange={(e) => handleTitleChange(e.target.value)}
-              onKeyDown={handleTitleKeyDown}
-              placeholder="New Page"
-              className="editor-title"
-            />
-          </div>
-          <div ref={containerRef} className="px-12 pb-12" />
-        </div>
-      </div>
+    <div className="mt-3 mb-6 flex items-center gap-2 font-sans text-[12px] text-fg-subtle">
+      <span title={unsaved ? undefined : fullTime(modified)}>
+        {unsaved ? "New note" : editedAgo(modified)}
+      </span>
+      <span className="text-fg-faint">·</span>
+      <span className="tabular">{plural(words, "word")}</span>
     </div>
   );
 }
 
-export { buildContent, parseContent } from "../stores/notes-store";
+export function Editor({ hidden }: { hidden: boolean }) {
+  const host = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const title = useNotes((s) => s.title);
+  const selectedId = useNotes((s) => s.selectedId);
+  const font = useSettings((s) => s.editorFont);
+  const width = useSettings((s) => s.editorWidth);
+  const size = useSettings((s) => s.textSize);
+  const vimMode = useSettings((s) => s.vimMode);
+  const spellcheck = useSettings((s) => s.spellcheck);
+  const hideMarkdown = useSettings((s) => s.hideMarkdown);
+
+  useLayoutEffect(() => {
+    const view = session.createView(host.current!);
+    session.attach(view, scroller.current!, titleRef.current!);
+    return () => {
+      session.detach();
+      view.destroy();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const apply = () =>
+      !cancelled && session.setConfig({ vimMode, spellcheck, hideMarkdown });
+    if (vimMode) {
+      loadVim().then(async () => {
+        const { Vim } = await import("@replit/codemirror-vim");
+        Vim.defineEx("quit", "q", () =>
+          document.getElementById("note-list")?.focus(),
+        );
+        Vim.defineEx("write", "w", () => void session.flushAll());
+        Vim.defineEx("wq", "wq", () => {
+          void session.flushAll();
+          document.getElementById("note-list")?.focus();
+        });
+        apply();
+      });
+    } else apply();
+    return () => {
+      cancelled = true;
+    };
+  }, [vimMode, spellcheck, hideMarkdown]);
+
+  // Re-measure whenever the text, font or column width changes.
+  useLayoutEffect(
+    () => autosize(titleRef.current),
+    [title, font, size, width, selectedId],
+  );
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => useUi.setState({ titleScrolledAway: !entry.isIntersecting }),
+      { root: scroller.current, rootMargin: "-8px 0px 0px 0px" },
+    );
+    observer.observe(titleRef.current!);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => autosize(titleRef.current);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  function onTitleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const el = e.currentTarget;
+    const atEnd =
+      el.selectionStart === el.value.length &&
+      el.selectionEnd === el.value.length;
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      session.focusEditor("start");
+    } else if (
+      (e.key === "ArrowDown" && atEnd) ||
+      (e.key === "Tab" && !e.shiftKey)
+    ) {
+      e.preventDefault();
+      session.focusEditor("start");
+    }
+  }
+
+  return (
+    <div
+      ref={scroller}
+      className={`editor-root scroll h-full ${hidden ? "invisible" : ""}`}
+      data-font={font}
+      data-width={width}
+      style={{ ["--editor-size" as string]: `${size}px` }}
+      onMouseDown={(e) => {
+        // Clicks in the margins land in the editor instead of nowhere.
+        if (e.target === scroller.current) {
+          e.preventDefault();
+          session.focusEditor("end");
+        }
+      }}
+    >
+      <div className="editor-column pt-[clamp(24px,7vh,72px)]">
+        <textarea
+          ref={titleRef}
+          rows={1}
+          value={title}
+          placeholder="Untitled"
+          spellCheck={spellcheck}
+          aria-label="Title"
+          onChange={(e) => session.setTitle(e.target.value.replace(/\n/g, " "))}
+          onKeyDown={onTitleKeyDown}
+          className="editor-title"
+        />
+        <Meta />
+        <div ref={host} />
+      </div>
+    </div>
+  );
+}

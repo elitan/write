@@ -4,22 +4,27 @@
   "version": "0.6.0",
   "identifier": "com.write.app",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
         "title": "Write",
-        "width": 1100,
-        "height": 700,
-        "minWidth": 600,
-        "minHeight": 400,
+        "width": 1200,
+        "height": 780,
+        "minWidth": 720,
+        "minHeight": 460,
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
-        "acceptFirstMouse": true
+        "acceptFirstMouse": true,
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 22
+        },
+        "label": "main"
       }
     ],
     "security": {
