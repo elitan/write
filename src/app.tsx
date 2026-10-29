@@ -1,339 +1,187 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect } from "react";
+import { commands, matches } from "./commands";
 import { CommandPalette } from "./components/command-palette";
-import { DebugPanel, debugLog } from "./components/debug-panel";
 import { Editor } from "./components/editor";
 import { EmptyState } from "./components/empty-state";
-import { Modal } from "./components/modal";
-import { SettingsPopover } from "./components/settings-popover";
 import { Sidebar } from "./components/sidebar";
-import { UpdatePrompt } from "./components/update-prompt";
-import { WorkspaceSwitcher } from "./components/workspace-switcher";
-import { useSettings } from "./hooks/use-settings";
-import { useUpdater } from "./hooks/use-updater";
-import { useNotesStore } from "./stores/notes-store";
+import { Toaster } from "./components/toaster";
+import { Topbar } from "./components/topbar";
+import { WorkspaceDialogs } from "./components/workspace-dialogs";
+import * as session from "./editor/session";
+import { startUpdateChecks } from "./hooks/use-updater";
+import { initApi } from "./lib/api";
+import { isMod, isTauri } from "./lib/platform";
+import * as actions from "./store/actions";
+import { useNotes } from "./store/notes";
+import { useSettings } from "./store/settings";
+import { closePalette, openPalette, toast, useUi } from "./store/ui";
 
-function App() {
-  const notes = useNotesStore((s) => s.notes);
-  const selectedPath = useNotesStore((s) => s.selectedPath);
-  const notesLoading = useNotesStore((s) => s.notesLoading);
-  const workspacesLoading = useNotesStore((s) => s.workspacesLoading);
-  const workspaces = useNotesStore((s) => s.workspaces);
-  const activeWorkspaceId = useNotesStore((s) => s.activeWorkspaceId);
-  const activeWorkspace =
-    workspaces.find((w) => w.id === activeWorkspaceId) ?? null;
+const SettingsDialog = lazy(() =>
+  import("./components/settings-dialog").then((m) => ({
+    default: m.SettingsDialog,
+  })),
+);
 
-  const loadWorkspaces = useNotesStore((s) => s.loadWorkspaces);
-  const loadNotes = useNotesStore((s) => s.loadNotes);
-  const selectNote = useNotesStore((s) => s.selectNote);
-  const deselectNote = useNotesStore((s) => s.deselectNote);
-  const createNote = useNotesStore((s) => s.createNote);
-  const deleteNote = useNotesStore((s) => s.deleteNote);
-  const reorderNote = useNotesStore((s) => s.reorderNote);
-  const switchWorkspace = useNotesStore((s) => s.switchWorkspace);
-  const createWorkspace = useNotesStore((s) => s.createWorkspace);
-  const deleteWorkspace = useNotesStore((s) => s.deleteWorkspace);
-  const renameWorkspace = useNotesStore((s) => s.renameWorkspace);
-
-  const {
-    updateAvailable,
-    readyToInstall,
-    restartAndInstall,
-    checkForUpdates,
-  } = useUpdater();
-  const { settings, setSetting } = useSettings();
-
-  type ModalType = "palette" | "settings" | "workspace" | "debug" | null;
-  const [openModal, setOpenModal] = useState<ModalType>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{
-    path: string;
-    title: string;
-  } | null>(null);
-  const [sidebarFocused, setSidebarFocused] = useState(false);
-
-  const handleCloseEditor = useCallback(() => {
-    deselectNote();
-    setSidebarFocused(true);
-  }, [deselectNote]);
-
-  const handleDeleteRequest = useCallback(
-    async (path: string) => {
-      const text = await invoke<string>("read_note", { path });
-      const lines = text.split("\n");
-      const titleLineIndex = lines.findIndex((line) => line.startsWith("# "));
-      const body =
-        titleLineIndex === -1
-          ? text
-          : [
-              ...lines.slice(0, titleLineIndex),
-              ...lines.slice(titleLineIndex + 1),
-            ].join("\n");
-
-      if (body.trim() === "") {
-        deleteNote(path);
-      } else {
-        const note = notes.find((n) => n.path === path);
-        setDeleteConfirm({ path, title: note?.title || "Untitled" });
-      }
-    },
-    [deleteNote, notes],
-  );
-
+function useTheme() {
+  const theme = useSettings((s) => s.theme);
   useEffect(() => {
-    loadWorkspaces();
-  }, [loadWorkspaces]);
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-      debugLog("app:keydown", {
-        key: e.key,
-        code: e.code,
-        meta: e.metaKey,
-        shift: e.shiftKey,
-        ctrl: e.ctrlKey,
-        target: target.tagName,
-        sidebarFocused,
-      });
-
-      if (e.metaKey && e.key === "k") {
-        e.preventDefault();
-        debugLog("app:action", { action: "openCommandPalette" });
-        setOpenModal("palette");
-      } else if (e.metaKey && e.key === "n") {
-        e.preventDefault();
-        debugLog("app:action", { action: "createNote" });
-        createNote();
-      } else if (e.metaKey && e.key === ",") {
-        e.preventDefault();
-        debugLog("app:action", { action: "openSettings" });
-        setOpenModal("settings");
-      } else if (e.metaKey && e.key === "Backspace" && selectedPath) {
-        e.preventDefault();
-        debugLog("app:action", { action: "deleteNote", selectedPath });
-        handleDeleteRequest(selectedPath);
-      } else if (e.metaKey && e.shiftKey && e.key.toLowerCase() === "e") {
-        e.preventDefault();
-        debugLog("app:action", {
-          action: "focusSidebar",
-          before: sidebarFocused,
-        });
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-        setSidebarFocused(true);
-      } else if (e.ctrlKey && e.key === "Tab") {
-        e.preventDefault();
-        debugLog("app:action", { action: "openWorkspaceSwitcher" });
-        setOpenModal("workspace");
-      } else if (e.metaKey && /^[1-9]$/.test(e.key)) {
-        const workspace = workspaces.find((w) => w.shortcut === e.key);
-        if (workspace && workspace.id !== activeWorkspaceId) {
-          e.preventDefault();
-          debugLog("app:action", {
-            action: "switchWorkspace",
-            workspace: workspace.name,
-          });
-          switchWorkspace(workspace.id);
-        }
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    createNote,
-    selectedPath,
-    handleDeleteRequest,
-    workspaces,
-    activeWorkspaceId,
-    switchWorkspace,
-    sidebarFocused,
-  ]);
-
-  useEffect(() => {
-    const unlisten = listen("tauri://focus", () => {
-      loadNotes();
-    });
-    return () => {
-      unlisten.then((fn) => fn());
+    const media = matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => {
+      const resolved =
+        theme === "system" ? (media.matches ? "dark" : "light") : theme;
+      document.documentElement.dataset.theme = resolved;
     };
-  }, [loadNotes]);
-
-  const prevWorkspaceRef = useRef(activeWorkspaceId);
-
-  useEffect(() => {
-    if (prevWorkspaceRef.current !== activeWorkspaceId) {
-      prevWorkspaceRef.current = activeWorkspaceId;
-      return;
+    apply();
+    media.addEventListener("change", apply);
+    if (isTauri) {
+      import("@tauri-apps/api/window")
+        .then(({ getCurrentWindow }) =>
+          getCurrentWindow().setTheme(theme === "system" ? null : theme),
+        )
+        .catch(() => {});
     }
-    if (selectedPath && activeWorkspaceId) {
-      const key = `write-workspace-${activeWorkspaceId}-selected`;
-      localStorage.setItem(key, selectedPath);
-    }
-  }, [selectedPath, activeWorkspaceId]);
+    return () => media.removeEventListener("change", apply);
+  }, [theme]);
+}
 
-  useEffect(() => {
-    if (!activeWorkspaceId) return;
-
-    async function loadWorkspaceNotes() {
-      await loadNotes();
-
-      const key = `write-workspace-${activeWorkspaceId}-selected`;
-      const savedPath = localStorage.getItem(key);
-      const storeNotes = useNotesStore.getState().notes;
-
-      if (savedPath && storeNotes.some((n) => n.path === savedPath)) {
-        selectNote(savedPath);
-      } else if (storeNotes.length > 0) {
-        selectNote(storeNotes[0].path);
-      }
-    }
-
-    loadWorkspaceNotes();
-  }, [activeWorkspaceId]);
-
-  if (notesLoading || workspacesLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-pulse text-[var(--color-muted)]">
-          Loading...
-        </div>
-      </div>
-    );
-  }
-
+function isEditable(target: EventTarget | null) {
+  const el = target as HTMLElement | null;
   return (
-    <div className="flex h-screen bg-[var(--color-bg)]">
-      <div
-        className="fixed top-0 left-0 right-0 h-[52px] z-50 bg-black/[0.001]"
-        onMouseDown={(e) => {
-          if (e.buttons === 1) {
-            if (e.detail === 2) {
-              getCurrentWindow().toggleMaximize();
-            } else {
-              getCurrentWindow().startDragging();
-            }
-          }
-        }}
-      />
-
-      <Sidebar
-        notes={notes}
-        selectedPath={selectedPath}
-        onSelect={selectNote}
-        onDelete={handleDeleteRequest}
-        onReorder={reorderNote}
-        isFocused={sidebarFocused}
-        onFocusChange={setSidebarFocused}
-        activeWorkspace={activeWorkspace}
-        onOpenWorkspaceSwitcher={() => setOpenModal("workspace")}
-      />
-
-      <main className="flex-1 relative">
-        {selectedPath ? (
-          <Editor
-            key={`${selectedPath}-${settings.vimMode}`}
-            vimMode={settings.vimMode}
-            onClose={handleCloseEditor}
-          />
-        ) : (
-          <EmptyState />
-        )}
-      </main>
-
-      <CommandPalette
-        notes={notes}
-        isOpen={openModal === "palette"}
-        onClose={() => setOpenModal(null)}
-        onSelect={selectNote}
-        onCheckForUpdates={checkForUpdates}
-        onOpenSettings={() => setOpenModal("settings")}
-        onToggleDebug={() =>
-          setOpenModal((m) => (m === "debug" ? null : "debug"))
-        }
-        selectedPath={selectedPath}
-        onDeleteCurrent={() =>
-          selectedPath && handleDeleteRequest(selectedPath)
-        }
-      />
-
-      {readyToInstall && updateAvailable && (
-        <UpdatePrompt
-          version={updateAvailable.version}
-          onRestart={restartAndInstall}
-        />
-      )}
-
-      <SettingsPopover
-        isOpen={openModal === "settings"}
-        onClose={() => setOpenModal(null)}
-        vimMode={settings.vimMode}
-        onVimModeChange={(v) => setSetting("vimMode", v)}
-      />
-
-      <WorkspaceSwitcher
-        workspaces={workspaces}
-        activeWorkspaceId={activeWorkspaceId}
-        isOpen={openModal === "workspace"}
-        onClose={() => setOpenModal(null)}
-        onSelect={(id) => {
-          switchWorkspace(id);
-          setOpenModal(null);
-        }}
-        onCreate={(name) => {
-          createWorkspace(name).then((w) => {
-            switchWorkspace(w.id);
-          });
-        }}
-        onDelete={deleteWorkspace}
-        onRename={renameWorkspace}
-      />
-
-      <Modal
-        isOpen={deleteConfirm !== null}
-        onClose={() => setDeleteConfirm(null)}
-        title="Delete page?"
-      >
-        <p className="text-sm text-[var(--color-muted)] mb-4">
-          "{deleteConfirm?.title}" has content. Are you sure?
-        </p>
-        <div className="flex gap-2 justify-end">
-          <button
-            onClick={() => setDeleteConfirm(null)}
-            className="px-3 py-1.5 text-sm rounded-[var(--radius-sm)] hover:bg-[var(--color-sidebar)] transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            autoFocus
-            onClick={() => {
-              if (deleteConfirm) {
-                deleteNote(deleteConfirm.path);
-                setDeleteConfirm(null);
-              }
-            }}
-            className="px-3 py-1.5 text-sm rounded-[var(--radius-sm)] bg-red-500 text-white hover:bg-red-600 transition-colors"
-          >
-            Delete
-          </button>
-        </div>
-      </Modal>
-
-      <DebugPanel
-        isOpen={openModal === "debug"}
-        onClose={() => setOpenModal(null)}
-        state={{
-          sidebarFocused,
-          selectedPath,
-          notesCount: notes.length,
-          openModal,
-        }}
-      />
-    </div>
+    !!el &&
+    (el.tagName === "INPUT" ||
+      el.tagName === "TEXTAREA" ||
+      el.isContentEditable)
   );
 }
 
-export default App;
+// Text-editing meanings of these keys win while typing.
+const yieldToText = new Set(["mod+backspace", "mod+[", "mod+]", "mod+f"]);
+
+function useShortcuts() {
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.isComposing) return;
+      const ui = useUi.getState();
+      if (ui.palette.open || ui.dialog) {
+        if (ui.palette.open && isMod(e) && e.key.toLowerCase() === "k") {
+          e.preventDefault();
+          closePalette();
+        }
+        return;
+      }
+
+      if (e.ctrlKey && e.key === "Tab") {
+        e.preventDefault();
+        openPalette("workspaces");
+        return;
+      }
+      if (isMod(e) && !e.shiftKey && !e.altKey && /^[1-9]$/.test(e.key)) {
+        const ws = useNotes
+          .getState()
+          .workspaces.find((w) => w.shortcut === e.key);
+        if (ws) {
+          e.preventDefault();
+          void actions.switchWorkspace(ws.id);
+        }
+        return;
+      }
+      if (isMod(e) && e.key.toLowerCase() === "p" && !e.shiftKey) {
+        e.preventDefault();
+        openPalette();
+        return;
+      }
+      if (isMod(e) && e.shiftKey && e.key === "Backspace") {
+        const { selectedId } = useNotes.getState();
+        if (selectedId) {
+          e.preventDefault();
+          void actions.deleteNote(selectedId);
+        }
+        return;
+      }
+
+      for (const command of commands) {
+        if (!command.shortcut || !matches(e, command.shortcut)) continue;
+        if (yieldToText.has(command.shortcut) && isEditable(e.target)) return;
+        if (command.when && !command.when()) return;
+        e.preventDefault();
+        e.stopPropagation();
+        command.run();
+        return;
+      }
+    }
+    // Capture phase so app shortcuts beat CodeMirror's defaults.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+}
+
+let started = false;
+
+function useLifecycle() {
+  useEffect(() => {
+    // Runs after the editor view has mounted, once (StrictMode re-runs effects).
+    if (!started) {
+      started = true;
+      initApi()
+        .then(actions.init)
+        .catch((err) => {
+          console.error(err);
+          toast(`Couldn't load notes: ${String(err)}`, {
+            tone: "error",
+            duration: 10_000,
+          });
+        });
+    }
+
+    const onFocus = () => void actions.refresh();
+    const onBlur = () => void session.flushAll();
+    const onHide = () => {
+      if (document.visibilityState === "hidden") void session.flushAll();
+    };
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("beforeunload", onBlur);
+    document.addEventListener("visibilitychange", onHide);
+    const stopUpdates = startUpdateChecks();
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("beforeunload", onBlur);
+      document.removeEventListener("visibilitychange", onHide);
+      stopUpdates();
+    };
+  }, []);
+}
+
+export function App() {
+  useTheme();
+  useShortcuts();
+  useLifecycle();
+  const ready = useNotes((s) => s.ready);
+  const hasNote = useNotes((s) => s.selectedId !== null);
+  const paletteOpen = useUi((s) => s.palette.open);
+  const dialog = useUi((s) => s.dialog);
+
+  return (
+    <div
+      className={`flex h-full bg-bg transition-opacity duration-150 ${ready ? "opacity-100" : "opacity-0"}`}
+    >
+      <Sidebar />
+      <main className="relative flex min-w-0 flex-1 flex-col">
+        <Topbar />
+        <div className="relative min-h-0 flex-1">
+          <Editor hidden={!hasNote} />
+          {ready && !hasNote && <EmptyState />}
+        </div>
+      </main>
+      {paletteOpen && <CommandPalette />}
+      {dialog?.type === "settings" && (
+        <Suspense fallback={null}>
+          <SettingsDialog />
+        </Suspense>
+      )}
+      <WorkspaceDialogs />
+      <Toaster />
+    </div>
+  );
+}

@@ -1,281 +1,231 @@
 import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+  ArrowUpCircle,
+  ChevronsUpDown,
+  PanelLeft,
+  Pencil,
+  Plus,
+  Search,
+  Settings,
+  SquarePen,
+  Trash2,
+} from "lucide-react";
+import { useRef, useState } from "react";
+import { restartToUpdate, useUpdater } from "../hooks/use-updater";
+import { hasTrafficLights } from "../lib/platform";
+import * as actions from "../store/actions";
+import { useNotes } from "../store/notes";
 import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, FileText, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { NoteEntry, Workspace } from "../stores/notes-store";
-import { debugLog } from "./debug-panel";
+  SIDEBAR_MAX,
+  SIDEBAR_MIN,
+  setSetting,
+  useSettings,
+} from "../store/settings";
+import { openDialog, openPalette } from "../store/ui";
+import { NoteList } from "./note-list";
+import { IconButton, Tooltip } from "./ui/controls";
+import { Shortcut } from "./ui/kbd";
+import { Menu } from "./ui/menu";
+import { WorkspaceBadge } from "./workspace-badge";
 
-interface SidebarProps {
-  notes: NoteEntry[];
-  selectedPath: string | null;
-  onSelect: (path: string) => void;
-  onDelete: (path: string) => void;
-  onReorder: (path: string, newIndex: number) => void;
-  isFocused: boolean;
-  onFocusChange: (focused: boolean) => void;
-  activeWorkspace: Workspace | null;
-  onOpenWorkspaceSwitcher: () => void;
-}
-
-interface SortableItemProps {
-  note: NoteEntry;
-  isSelected: boolean;
-  isFocusHighlighted: boolean;
-  isHovered: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
-}
-
-function SortableItem({
-  note,
-  isSelected,
-  isFocusHighlighted,
-  isHovered,
-  onSelect,
-  onDelete,
-  onMouseEnter,
-  onMouseLeave,
-}: SortableItemProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: note.path });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 10 : undefined,
-  };
+function WorkspaceButton() {
+  const workspaces = useNotes((s) => s.workspaces);
+  const activeId = useNotes((s) => s.activeWorkspaceId);
+  const active = workspaces.find((w) => w.id === activeId);
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const button = useRef<HTMLButtonElement>(null);
 
   return (
-    <li
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
+    <>
       <button
-        onClick={onSelect}
-        className={`group flex items-center gap-2 w-full px-3 py-2 text-sm rounded-[var(--radius-sm)]
-                   transition-colors duration-[var(--transition-fast)] text-left cursor-grab active:cursor-grabbing
-                   ${
-                     isDragging
-                       ? "bg-[var(--color-accent-light)] shadow-lg"
-                       : isFocusHighlighted || isSelected
-                         ? "bg-[var(--color-accent-light)] text-[var(--color-text)]"
-                         : "hover:bg-[var(--color-bg)] text-[var(--color-text)]"
-                   }`}
+        ref={button}
+        type="button"
+        onClick={() => setAnchor(button.current!.getBoundingClientRect())}
+        className={`flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 text-left transition-colors duration-100 hover:bg-hover ${anchor ? "bg-hover" : ""}`}
       >
-        <FileText size={16} className="shrink-0 text-[var(--color-muted)]" />
-        <span className="truncate flex-1">{note.title}</span>
-        {isHovered && !isDragging && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            className="p-1 -m-1 rounded hover:bg-[var(--color-border)] transition-colors"
-          >
-            <Trash2
-              size={14}
-              className="text-[var(--color-muted)] hover:text-red-500"
-            />
-          </button>
-        )}
+        <WorkspaceBadge name={active?.name ?? "W"} />
+        <span className="truncate font-medium text-fg">
+          {active?.name ?? "Workspace"}
+        </span>
+        <ChevronsUpDown size={13} className="ml-auto shrink-0 text-fg-subtle" />
       </button>
-    </li>
+      {anchor && (
+        <Menu
+          anchor={anchor}
+          width={240}
+          onClose={() => setAnchor(null)}
+          items={[
+            { heading: "Workspaces" },
+            ...workspaces.map((w) => ({
+              label: w.name,
+              icon: <WorkspaceBadge name={w.name} size={16} />,
+              shortcut: w.shortcut ? `mod+${w.shortcut}` : undefined,
+              checked: w.id === activeId,
+              onSelect: () => void actions.switchWorkspace(w.id),
+            })),
+            { separator: true },
+            {
+              label: "New workspace…",
+              icon: <Plus size={14} />,
+              onSelect: () => openDialog({ type: "workspace-create" }),
+            },
+            {
+              label: "Rename…",
+              icon: <Pencil size={14} />,
+              onSelect: () =>
+                openDialog({ type: "workspace-rename", workspaceId: activeId }),
+            },
+            {
+              label: "Remove…",
+              icon: <Trash2 size={14} />,
+              danger: true,
+              disabled: workspaces.length <= 1,
+              onSelect: () =>
+                openDialog({ type: "workspace-delete", workspaceId: activeId }),
+            },
+          ]}
+        />
+      )}
+    </>
   );
 }
 
-export function Sidebar({
-  notes,
-  selectedPath,
-  onSelect,
-  onDelete,
-  onReorder,
-  isFocused,
-  onFocusChange,
-  activeWorkspace,
-  onOpenWorkspaceSwitcher,
-}: SidebarProps) {
-  const [hoveredPath, setHoveredPath] = useState<string | null>(null);
-  const [focusedIndex, setFocusedIndex] = useState(0);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    }),
-  );
-
-  useEffect(() => {
-    if (isFocused) {
-      const currentIndex = notes.findIndex((n) => n.path === selectedPath);
-      setFocusedIndex(currentIndex >= 0 ? currentIndex : 0);
-    }
-  }, [isFocused, notes, selectedPath]);
-
-  useEffect(() => {
-    if (!isFocused) return;
-
-    function handleKeyDown(e: KeyboardEvent) {
-      const target = e.target as HTMLElement;
-
-      if (
-        target.tagName === "INPUT" ||
-        target.tagName === "TEXTAREA" ||
-        target.isContentEditable
-      ) {
-        debugLog("sidebar:skip", {
-          reason: "input focused",
-          target: target.tagName,
-        });
-        return;
-      }
-
-      debugLog("sidebar:keydown", {
-        key: e.key,
-        target: target.tagName,
-        isFocused,
-        focusedIndex,
-        notesCount: notes.length,
-        selectedPath,
-        notePaths: notes.map((n) => n.path.split("/").pop()),
-      });
-
-      if (e.key === "ArrowDown" || e.key === "j") {
-        e.preventDefault();
-        e.stopPropagation();
-        const newIndex = Math.min(focusedIndex + 1, notes.length - 1);
-        debugLog("sidebar:nav", {
-          action: "down",
-          from: focusedIndex,
-          to: newIndex,
-        });
-        setFocusedIndex(newIndex);
-      } else if (e.key === "ArrowUp" || e.key === "k") {
-        e.preventDefault();
-        e.stopPropagation();
-        const newIndex = Math.max(focusedIndex - 1, 0);
-        debugLog("sidebar:nav", {
-          action: "up",
-          from: focusedIndex,
-          to: newIndex,
-        });
-        setFocusedIndex(newIndex);
-      } else if (e.key === "Enter" || e.key === "l") {
-        e.preventDefault();
-        e.stopPropagation();
-        debugLog("sidebar:select", {
-          focusedIndex,
-          selectingNote: notes[focusedIndex]?.path,
-          currentSelectedPath: selectedPath,
-          allNotes: notes.map((n) => n.path.split("/").pop()),
-        });
-        if (notes[focusedIndex]) {
-          onSelect(notes[focusedIndex].path);
-          onFocusChange(false);
-        }
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        debugLog("sidebar:escape", {});
-        onFocusChange(false);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [isFocused, notes, focusedIndex, onSelect, onFocusChange]);
-
-  function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      const oldIndex = notes.findIndex((n) => n.path === active.id);
-      const newIndex = notes.findIndex((n) => n.path === over.id);
-      if (oldIndex !== -1 && newIndex !== -1) {
-        onReorder(active.id as string, newIndex);
-      }
-    }
+function ResizeHandle() {
+  function onPointerDown(e: React.PointerEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = useSettings.getState().sidebarWidth;
+    const el = e.currentTarget as HTMLElement;
+    el.setPointerCapture(e.pointerId);
+    document.body.style.cursor = "col-resize";
+    const move = (ev: PointerEvent) => {
+      const w = Math.round(
+        Math.min(
+          SIDEBAR_MAX,
+          Math.max(SIDEBAR_MIN, startW + ev.clientX - startX),
+        ),
+      );
+      setSetting("sidebarWidth", w);
+    };
+    const up = () => {
+      document.body.style.cursor = "";
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
   }
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-valuenow={useSettings.getState().sidebarWidth}
+      aria-valuemin={SIDEBAR_MIN}
+      aria-valuemax={SIDEBAR_MAX}
+      tabIndex={-1}
+      aria-label="Resize sidebar"
+      onPointerDown={onPointerDown}
+      onDoubleClick={() => setSetting("sidebarWidth", 260)}
+      className="group absolute top-0 -right-[3px] bottom-0 z-10 w-[6px] cursor-col-resize"
+    >
+      <div className="mx-auto h-full w-px bg-transparent transition-colors duration-150 group-hover:bg-line-strong group-active:bg-accent" />
+    </div>
+  );
+}
+
+function UpdatePill() {
+  const status = useUpdater((s) => s.status);
+  const version = useUpdater((s) => s.version);
+  if (status !== "ready") return null;
+  return (
+    <button
+      type="button"
+      onClick={restartToUpdate}
+      className="anim-pop flex h-7 items-center gap-1.5 rounded-full bg-accent-soft px-2.5 text-[12px] font-medium text-accent-text transition-opacity hover:opacity-80"
+    >
+      <ArrowUpCircle size={13} />
+      Restart to update{version ? ` to ${version}` : ""}
+    </button>
+  );
+}
+
+export function Sidebar() {
+  const open = useSettings((s) => s.sidebarOpen);
+  const width = useSettings((s) => s.sidebarWidth);
+  const count = useNotes((s) => s.notes.length);
 
   return (
     <aside
-      className={`flex flex-col h-full w-60 border-r bg-[var(--color-sidebar)] ${
-        isFocused
-          ? "border-[var(--color-accent)]"
-          : "border-[var(--color-border)]"
-      }`}
-      style={{ paddingTop: 52 }}
+      aria-label="Sidebar"
+      inert={!open}
+      style={{ width: open ? width : 0 }}
+      className="relative flex h-full shrink-0 flex-col overflow-hidden border-line border-r bg-sidebar transition-[width] duration-200 ease-[var(--ease-out)] data-[closed]:border-r-0"
+      data-closed={open ? undefined : ""}
     >
-      <button
-        onClick={onOpenWorkspaceSwitcher}
-        className="flex items-center justify-between mx-2 mt-3 px-3 py-2 text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg)] rounded-[var(--radius-sm)] transition-colors"
-      >
-        <span className="truncate">{activeWorkspace?.name || "Workspace"}</span>
-        <ChevronDown size={14} className="shrink-0" />
-      </button>
-
-      <nav className="flex-1 overflow-y-auto px-2 pt-2">
-        {notes.length === 0 ? (
-          <p className="px-3 py-8 text-center text-sm text-[var(--color-muted)]">
-            No notes yet
-          </p>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+      <div className="flex h-full flex-col" style={{ width }}>
+        <div
+          data-tauri-drag-region
+          className="flex h-[52px] shrink-0 items-center justify-end px-2"
+        >
+          {!hasTrafficLights && (
+            <span className="mr-auto pl-2 text-[12px] font-semibold tracking-tight text-fg-subtle">
+              Write
+            </span>
+          )}
+          <IconButton
+            label="Hide sidebar"
+            shortcut="mod+\"
+            onClick={() => setSetting("sidebarOpen", false)}
           >
-            <SortableContext
-              items={notes.map((n) => n.path)}
-              strategy={verticalListSortingStrategy}
+            <PanelLeft size={15} strokeWidth={1.75} />
+          </IconButton>
+        </div>
+
+        <div className="flex items-center gap-1 px-2">
+          <WorkspaceButton />
+          <IconButton
+            label="New note"
+            shortcut="mod+n"
+            onClick={() => actions.createNote()}
+          >
+            <SquarePen size={15} strokeWidth={1.75} />
+          </IconButton>
+        </div>
+
+        <div className="px-2 pt-2 pb-3">
+          <button
+            type="button"
+            onClick={() => openPalette()}
+            className="flex h-8 w-full items-center gap-2 rounded-md border border-line bg-bg px-2 text-fg-subtle shadow-[0_1px_1px_rgb(0_0_0/0.03)] transition-colors duration-100 hover:border-line-strong hover:text-fg-muted"
+          >
+            <Search size={14} strokeWidth={1.75} />
+            <span className="flex-1 text-left">Search</span>
+            <Shortcut keys="mod+k" />
+          </button>
+        </div>
+
+        <div className="flex h-7 items-center justify-between px-4 text-[11px] font-medium text-fg-subtle">
+          <span>Notes</span>
+          <span className="tabular">{count || ""}</span>
+        </div>
+
+        <NoteList />
+
+        <div className="flex h-11 shrink-0 items-center gap-1 border-line border-t px-2">
+          <Tooltip label="Settings" shortcut="mod+," side="top">
+            <button
+              type="button"
+              onClick={() => openDialog({ type: "settings", tab: "general" })}
+              className="flex h-7 items-center gap-2 rounded-md px-2 text-fg-subtle transition-colors hover:bg-hover hover:text-fg"
             >
-              <ul className="space-y-0.5">
-                {notes.map((note, index) => (
-                  <SortableItem
-                    key={note.path}
-                    note={note}
-                    isSelected={selectedPath === note.path}
-                    isFocusHighlighted={isFocused && index === focusedIndex}
-                    isHovered={hoveredPath === note.path}
-                    onSelect={() => onSelect(note.path)}
-                    onDelete={() => onDelete(note.path)}
-                    onMouseEnter={() => setHoveredPath(note.path)}
-                    onMouseLeave={() => setHoveredPath(null)}
-                  />
-                ))}
-              </ul>
-            </SortableContext>
-          </DndContext>
-        )}
-      </nav>
+              <Settings size={14} strokeWidth={1.75} />
+              Settings
+            </button>
+          </Tooltip>
+          <span className="ml-auto" />
+          <UpdatePill />
+        </div>
+      </div>
+      {open && <ResizeHandle />}
     </aside>
   );
 }

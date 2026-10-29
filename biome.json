@@ -6,7 +6,12 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!!**/dist", "!!**/src-tauri", "!!**/*.css"]
+    "includes": [
+      "**",
+      "!!**/dist",
+      "!!**/src-tauri",
+      "!!**/*.css"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -25,13 +30,16 @@
         "useKeyWithClickEvents": "off",
         "noStaticElementInteractions": "off",
         "noSvgWithoutTitle": "off",
-        "noAutofocus": "off"
+        "noAutofocus": "off",
+        "useFocusableInteractive": "off",
+        "useSemanticElements": "off"
       },
       "style": {
         "noNonNullAssertion": "off"
       },
       "suspicious": {
-        "useIterableCallbackReturn": "off"
+        "useIterableCallbackReturn": "off",
+        "noArrayIndexKey": "off"
       }
     }
   },

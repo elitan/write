@@ -1,61 +1,83 @@
+import * as actions from "../store/actions";
+import { useNotes } from "../store/notes";
+import { openPalette } from "../store/ui";
+import { Shortcut } from "./ui/kbd";
+
 export function EmptyState() {
+  const hasNotes = useNotes((s) => s.notes.length > 0);
+  const rows: [string, string, () => void][] = [
+    ["New note", "mod+n", () => actions.createNote()],
+    ["Search", "mod+k", () => openPalette()],
+    ["Switch workspace", "ctrl+tab", () => openPalette("workspaces")],
+  ];
   return (
-    <div
-      className="flex flex-col items-center justify-center h-full"
-      style={{ paddingTop: 52 }}
-    >
+    <div className="absolute inset-0 flex flex-col items-center justify-center pb-[8vh]">
       <svg
-        width="48"
-        height="48"
+        width="40"
+        height="40"
         viewBox="0 0 512 512"
-        fill="none"
-        className="mb-12 opacity-20"
+        aria-hidden
+        className="mb-6 text-fg-faint"
       >
-        <rect width="512" height="512" rx="108" fill="currentColor" />
-        <path
-          d="M140 156C140 149.373 145.373 144 152 144H320C326.627 144 332 149.373 332 156C332 162.627 326.627 168 320 168H152C145.373 168 140 162.627 140 156Z"
-          fill="var(--color-bg)"
+        <rect
+          width="512"
+          height="512"
+          rx="112"
+          fill="currentColor"
+          opacity="0.35"
         />
-        <path
-          d="M140 216C140 209.373 145.373 204 152 204H280C286.627 204 292 209.373 292 216C292 222.627 286.627 228 280 228H152C145.373 228 140 222.627 140 216Z"
-          fill="var(--color-bg)"
-          fillOpacity="0.6"
+        <rect
+          x="140"
+          y="146"
+          width="192"
+          height="24"
+          rx="12"
+          fill="var(--bg)"
         />
-        <path
-          d="M140 276C140 269.373 145.373 264 152 264H240C246.627 264 252 269.373 252 276C252 282.627 246.627 288 240 288H152C145.373 288 140 282.627 140 276Z"
-          fill="var(--color-bg)"
-          fillOpacity="0.4"
+        <rect
+          x="140"
+          y="206"
+          width="152"
+          height="24"
+          rx="12"
+          fill="var(--bg)"
+          opacity="0.7"
         />
-        <path
-          d="M140 336C140 329.373 145.373 324 152 324H200C206.627 324 212 329.373 212 336C212 342.627 206.627 348 200 348H152C145.373 348 140 342.627 140 336Z"
-          fill="var(--color-bg)"
-          fillOpacity="0.2"
+        <rect
+          x="140"
+          y="266"
+          width="112"
+          height="24"
+          rx="12"
+          fill="var(--bg)"
+          opacity="0.5"
+        />
+        <rect
+          x="140"
+          y="326"
+          width="72"
+          height="24"
+          rx="12"
+          fill="var(--bg)"
+          opacity="0.3"
         />
       </svg>
-
-      <div className="flex flex-col gap-3 text-[13px] text-[var(--color-muted)]">
-        <Shortcut keys={["⌘", "N"]} label="New" />
-        <Shortcut keys={["⌘", "K"]} label="Search" />
-        <Shortcut keys={["⌘", ","]} label="Settings" />
-      </div>
-    </div>
-  );
-}
-
-function Shortcut({ keys, label }: { keys: string[]; label: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex gap-1">
-        {keys.map((key) => (
-          <kbd
-            key={key}
-            className="w-6 h-6 flex items-center justify-center text-[11px] bg-[var(--color-sidebar)] border border-[var(--color-border)] rounded-md"
+      <p className="mb-5 text-[13px] text-fg-subtle">
+        {hasNotes ? "No note selected" : "This workspace is empty"}
+      </p>
+      <div className="flex w-[240px] flex-col gap-0.5">
+        {rows.map(([label, keys, run]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={run}
+            className="flex h-8 items-center justify-between rounded-md px-2.5 text-[13px] text-fg-muted transition-colors hover:bg-hover hover:text-fg"
           >
-            {key}
-          </kbd>
+            {label}
+            <Shortcut keys={keys} />
+          </button>
         ))}
       </div>
-      <span>{label}</span>
     </div>
   );
 }

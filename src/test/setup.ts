@@ -1,24 +1,33 @@
-import { vi } from "vitest";
+// jsdom lacks the layout APIs CodeMirror measures with.
+if (!document.createRange().getClientRects) {
+  Range.prototype.getClientRects = () => [] as unknown as DOMRectList;
+  Range.prototype.getBoundingClientRect = () => new DOMRect();
+}
 
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(),
-}));
+globalThis.IntersectionObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+} as unknown as typeof IntersectionObserver;
 
-vi.mock("@tauri-apps/api/window", () => ({
-  getCurrentWindow: vi.fn(() => ({
-    startDragging: vi.fn(),
-    toggleMaximize: vi.fn(),
-  })),
-}));
-
-vi.mock("@tauri-apps/api/event", () => ({
-  listen: vi.fn(() => Promise.resolve(() => {})),
-}));
-
-vi.mock("@tauri-apps/plugin-updater", () => ({
-  check: vi.fn(),
-}));
-
-vi.mock("@tauri-apps/plugin-process", () => ({
-  relaunch: vi.fn(),
-}));
+// Newer Node versions shadow jsdom's localStorage with an unusable global.
+if (typeof globalThis.localStorage?.clear !== "function") {
+  const data = new Map<string, string>();
+  const storage: Storage = {
+    get length() {
+      return data.size;
+    },
+    clear: () => data.clear(),
+    getItem: (k) => data.get(k) ?? null,
+    key: (i) => [...data.keys()][i] ?? null,
+    removeItem: (k) => void data.delete(k),
+    setItem: (k, v) => void data.set(k, String(v)),
+  };
+  Object.defineProperty(globalThis, "localStorage", {
+    value: storage,
+    configurable: true,
+  });
+}
